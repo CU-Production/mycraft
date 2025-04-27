@@ -38,15 +38,18 @@ set(GLFW_VULKAN_STATIC OFF CACHE INTERNAL "glfw vulkan")
 FetchContent_MakeAvailable(GLFW3)
 
 FILE(GLOB SOURCE_FILES src/*.c)
+set(MYCRAFT_SRC ${SOURCE_FILES}
+        deps/glad/src/glad.c
+        deps/lodepng/lodepng.c
+        deps/noise/noise.c
+        deps/sqlite/sqlite3.c
+        deps/tinycthread/tinycthread.c)
 
-add_executable(
-    mycraft
-    ${SOURCE_FILES}
-    deps/glad/src/glad.c
-    deps/lodepng/lodepng.c
-    deps/noise/noise.c
-    deps/sqlite/sqlite3.c
-    deps/tinycthread/tinycthread.c)
+if(WIN32)
+    add_executable(mycraft WIN32 ${MYCRAFT_SRC})
+else()
+    add_executable(mycraft ${MYCRAFT_SRC})
+endif()
 
 
 target_include_directories(mycraft PRIVATE deps/glad/include)

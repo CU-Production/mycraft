@@ -2588,7 +2588,12 @@ void reset_model() {
     g->time_changed = 1;
 }
 
-int main(int argc, char **argv) {
+#if WIN32
+int APIENTRY WinMain(HINSTANCE hInst, HINSTANCE hInstPrev, PSTR cmdline, int cmdshow)
+#else
+int main(int __argc, char **__argv)
+#endif
+{
     // INITIALIZATION //
     curl_global_init(CURL_GLOBAL_DEFAULT);
     srand(time(NULL));
@@ -2708,10 +2713,10 @@ int main(int argc, char **argv) {
     sky_attrib.timer = glGetUniformLocation(program, "timer");
 
     // CHECK COMMAND LINE ARGUMENTS //
-    if (argc == 2 || argc == 3) {
+    if (__argc == 2 || __argc == 3) {
         g->mode = MODE_ONLINE;
-        strncpy(g->server_addr, argv[1], MAX_ADDR_LENGTH);
-        g->server_port = argc == 3 ? atoi(argv[2]) : DEFAULT_PORT;
+        strncpy(g->server_addr, __argv[1], MAX_ADDR_LENGTH);
+        g->server_port = __argc == 3 ? atoi(__argv[2]) : DEFAULT_PORT;
         snprintf(g->db_path, MAX_PATH_LENGTH,
             "cache.%s.%d.db", g->server_addr, g->server_port);
     }
