@@ -2371,10 +2371,11 @@ void create_window() {
         window_width = modes[mode_count - 1].width;
         window_height = modes[mode_count - 1].height;
     }
-    // glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
-    // glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
-    // glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
-    // glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE);
+    glfwWindowHint(GLFW_CLIENT_API, GLFW_OPENGL_API);
+    glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
+    glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
+    glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
+    glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE);
     g->window = glfwCreateWindow(
         window_width, window_height, "Craft", monitor, NULL);
 }
@@ -2613,6 +2614,11 @@ int main(int argc, char **argv) {
 
     gladLoadGL();
     printf("OpenGL Version: %s\n", glGetString(GL_VERSION));
+
+    // modern GL VAO
+    GLuint VAO;
+    glGenVertexArrays(1, &VAO);
+    glBindVertexArray(VAO);
 
     glEnable(GL_CULL_FACE);
     glEnable(GL_DEPTH_TEST);
@@ -2959,6 +2965,10 @@ int main(int argc, char **argv) {
         delete_all_chunks();
         delete_all_players();
     }
+
+    // modern GL VAO
+    glBindVertexArray(0);
+    glDeleteVertexArrays(1, &VAO);
 
     glfwTerminate();
     curl_global_cleanup();
