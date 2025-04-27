@@ -10,8 +10,9 @@ FetchContent_Declare(curl
     URL https://github.com/curl/curl/releases/download/curl-8_13_0/curl-8.13.0.tar.xz
     USES_TERMINAL_DOWNLOAD TRUE # <---- This is needed only for Ninja to show download progress
 )
-set(BUILD_CURL_EXE OFF CACHE INTERNAL "" FORCE)
+set(BUILD_SHARED_LIBS OFF CACHE INTERNAL "shared")
 set(BUILD_TESTING OFF)
+set(BUILD_CURL_EXE OFF CACHE INTERNAL "" FORCE)
 set(CURL_ENABLE_SSL OFF CACHE INTERNAL "" FORCE)
 set(CURL_USE_LIBPSL OFF CACHE INTERNAL "" FORCE)
 set(CURL_CA_PATH "none" CACHE INTERNAL "" FORCE)
@@ -29,7 +30,6 @@ FetchContent_Declare(GLFW3
     GIT_PROGRESS TRUE
     GIT_SHALLOW TRUE
 )
-set(BUILD_SHARED_LIBS OFF CACHE INTERNAL "shared")
 set(GLFW_BUILD_EXAMPLES OFF CACHE INTERNAL "glfw examples")
 set(GLFW_BUILD_TESTS OFF CACHE INTERNAL "glfw tests")
 set(GLFW_BUILD_DOCS OFF CACHE INTERNAL "glfw docs")
