@@ -39,7 +39,6 @@ FetchContent_MakeAvailable(GLFW3)
 
 FILE(GLOB SOURCE_FILES src/*.c)
 set(MYCRAFT_SRC ${SOURCE_FILES}
-        deps/glad/src/glad.c
         deps/lodepng/lodepng.c
         deps/noise/noise.c
         deps/sqlite/sqlite3.c
@@ -51,12 +50,12 @@ else()
     add_executable(mycraft ${MYCRAFT_SRC})
 endif()
 
-
-target_include_directories(mycraft PRIVATE deps/glad/include)
 target_include_directories(mycraft PRIVATE deps/lodepng)
 target_include_directories(mycraft PRIVATE deps/noise)
 target_include_directories(mycraft PRIVATE deps/sqlite)
 target_include_directories(mycraft PRIVATE deps/tinycthread)
+target_include_directories(mycraft PRIVATE deps/sokol)
+target_include_directories(mycraft PRIVATE deps/HandmadeMath)
 
 if(APPLE)
     target_link_libraries(mycraft PRIVATE glfw CURL::libcurl)
