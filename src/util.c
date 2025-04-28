@@ -172,8 +172,8 @@ void load_png_texture_sokol(const char *file_name, sg_image *image, sg_sampler *
         .mag_filter = SG_FILTER_NEAREST,
     });
 
-    image = &_image;
-    sampler = &_sampler;
+    image->id = _image.id;
+    sampler->id = _sampler.id;
 
     free(data);
 }

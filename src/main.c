@@ -19,9 +19,16 @@
 #include "tinycthread.h"
 #include "util.h"
 #include "world.h"
+#include "stdint.h"
 #define SOKOL_GLCORE
 #include "sokol_gfx.h"
 #include "sokol_log.h"
+
+#include "HandmadeMath.h"
+#include "../shaders/block.glsl.h"
+#include "../shaders/line.glsl.h"
+#include "../shaders/sky.glsl.h"
+#include "../shaders/text.glsl.h"
 
 #define MAX_CHUNKS 8192
 #define MAX_PLAYERS 128
@@ -53,8 +60,8 @@ typedef struct {
     int dirty;
     int miny;
     int maxy;
-    unsigned int buffer;
-    unsigned int sign_buffer;
+    uint32_t buffer;
+    uint32_t sign_buffer;
 } Chunk;
 
 typedef struct {
@@ -176,6 +183,10 @@ static struct {
         sg_image   tex;
         sg_sampler smp;
     } texture_png;
+    sg_pipeline block_pip;
+    sg_pipeline line_pip;
+    sg_pipeline sky_pip;
+    sg_pipeline text_pip;
 } sokol_state;
 
 int chunked(float x) {
@@ -2637,51 +2648,90 @@ int main(int __argc, char **__argv)
     load_png_texture_sokol("textures/texture.png", &sokol_state.texture_png.tex, &sokol_state.texture_png.smp);
 
     // LOAD SHADERS //
-    Attrib block_attrib = {0};
-    Attrib line_attrib = {0};
-    Attrib text_attrib = {0};
-    Attrib sky_attrib = {0};
-    GLuint program;
-
-    program = load_program(
-        "shaders/block_vertex.glsl", "shaders/block_fragment.glsl");
-    block_attrib.program = program;
-    block_attrib.position = glGetAttribLocation(program, "position");
-    block_attrib.normal = glGetAttribLocation(program, "normal");
-    block_attrib.uv = glGetAttribLocation(program, "uv");
-    block_attrib.matrix = glGetUniformLocation(program, "matrix");
-    block_attrib.sampler = glGetUniformLocation(program, "sampler");
-    block_attrib.extra1 = glGetUniformLocation(program, "sky_sampler");
-    block_attrib.extra2 = glGetUniformLocation(program, "daylight");
-    block_attrib.extra3 = glGetUniformLocation(program, "fog_distance");
-    block_attrib.extra4 = glGetUniformLocation(program, "ortho");
-    block_attrib.camera = glGetUniformLocation(program, "camera");
-    block_attrib.timer = glGetUniformLocation(program, "timer");
-
-    program = load_program(
-        "shaders/line_vertex.glsl", "shaders/line_fragment.glsl");
-    line_attrib.program = program;
-    line_attrib.position = glGetAttribLocation(program, "position");
-    line_attrib.matrix = glGetUniformLocation(program, "matrix");
-
-    program = load_program(
-        "shaders/text_vertex.glsl", "shaders/text_fragment.glsl");
-    text_attrib.program = program;
-    text_attrib.position = glGetAttribLocation(program, "position");
-    text_attrib.uv = glGetAttribLocation(program, "uv");
-    text_attrib.matrix = glGetUniformLocation(program, "matrix");
-    text_attrib.sampler = glGetUniformLocation(program, "sampler");
-    text_attrib.extra1 = glGetUniformLocation(program, "is_sign");
-
-    program = load_program(
-        "shaders/sky_vertex.glsl", "shaders/sky_fragment.glsl");
-    sky_attrib.program = program;
-    sky_attrib.position = glGetAttribLocation(program, "position");
-    sky_attrib.normal = glGetAttribLocation(program, "normal");
-    sky_attrib.uv = glGetAttribLocation(program, "uv");
-    sky_attrib.matrix = glGetUniformLocation(program, "matrix");
-    sky_attrib.sampler = glGetUniformLocation(program, "sampler");
-    sky_attrib.timer = glGetUniformLocation(program, "timer");
+    {
+        sg_shader shd = sg_make_shader(block_shader_desc(sg_query_backend()));
+        sokol_state.block_pip = sg_make_pipeline(&(sg_pipeline_desc){
+            .layout = {
+                .buffers[0].stride = 44,
+                .attrs = {
+                    [ATTR_block_position].format = SG_VERTEXFORMAT_FLOAT4,
+                    [ATTR_block_normal].format   = SG_VERTEXFORMAT_FLOAT3,
+                    [ATTR_block_uv].format       = SG_VERTEXFORMAT_FLOAT4,
+                }
+            },
+            .shader = shd,
+            .cull_mode = SG_CULLMODE_BACK,
+            .depth = {
+                .write_enabled = true,
+                .compare = SG_COMPAREFUNC_LESS_EQUAL,
+            },
+            .label = "block-pipeline",
+        });
+    }
+    {
+        sg_shader shd = sg_make_shader(line_shader_desc(sg_query_backend()));
+        sokol_state.line_pip = sg_make_pipeline(&(sg_pipeline_desc){
+            .layout = {
+                .buffers[0].stride = 16,
+                .attrs = {
+                    [ATTR_line_position].format = SG_VERTEXFORMAT_FLOAT4,
+                }
+            },
+            .shader = shd,
+            .cull_mode = SG_CULLMODE_BACK,
+            .primitive_type = SG_PRIMITIVETYPE_LINES,
+            .depth = {
+                .write_enabled = false,
+            },
+            .label = "line-pipeline",
+        });
+    }
+    {
+        sg_shader shd = sg_make_shader(sky_shader_desc(sg_query_backend()));
+        sokol_state.sky_pip = sg_make_pipeline(&(sg_pipeline_desc){
+            .layout = {
+                .buffers[0].stride = 36,
+                .attrs = {
+                    [ATTR_sky_position].format = SG_VERTEXFORMAT_FLOAT4,
+                    [ATTR_sky_normal].format   = SG_VERTEXFORMAT_FLOAT3,
+                    [ATTR_sky_uv].format       = SG_VERTEXFORMAT_FLOAT2,
+                }
+            },
+            .shader = shd,
+            .cull_mode = SG_CULLMODE_BACK,
+            .depth = {
+                .write_enabled = true,
+                .compare = SG_COMPAREFUNC_LESS_EQUAL,
+            },
+            .label = "sky-pipeline",
+        });
+    }
+    {
+        sg_shader shd = sg_make_shader(text_shader_desc(sg_query_backend()));
+        sokol_state.text_pip = sg_make_pipeline(&(sg_pipeline_desc){
+            .layout = {
+                .buffers[0].stride = 24,
+                .attrs = {
+                    [ATTR_text_position].format = SG_VERTEXFORMAT_FLOAT4,
+                    [ATTR_text_uv].format       = SG_VERTEXFORMAT_FLOAT2,
+                }
+            },
+            .shader = shd,
+            .colors = {
+                [0].blend = {
+                    .enabled = true,
+                    .src_factor_rgb   = SG_BLENDFACTOR_SRC_ALPHA,
+                    .src_factor_alpha = SG_BLENDFACTOR_SRC_ALPHA,
+                    .dst_factor_rgb   = SG_BLENDFACTOR_ONE_MINUS_SRC_ALPHA,
+                    .dst_factor_alpha = SG_BLENDFACTOR_ONE_MINUS_SRC_ALPHA,
+                }
+            },
+            .depth = {
+                .write_enabled = false,
+            },
+            .label = "text-pipeline",
+        });
+    }
 
     // CHECK COMMAND LINE ARGUMENTS //
     if (__argc == 2 || __argc == 3) {
