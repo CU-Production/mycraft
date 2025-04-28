@@ -1,7 +1,8 @@
 #ifndef _util_h_
 #define _util_h_
 
-#include <glad/glad.h>
+#define SOKOL_GLCORE
+#include "sokol_gfx.h"
 #include <GLFW/glfw3.h>
 #include "config.h"
 
@@ -37,7 +38,9 @@ GLuint make_shader(GLenum type, const char *source);
 GLuint load_shader(GLenum type, const char *path);
 GLuint make_program(GLuint shader1, GLuint shader2);
 GLuint load_program(const char *path1, const char *path2);
+void flip_image_vertical(unsigned char *data, unsigned int width, unsigned int height);
 void load_png_texture(const char *file_name);
+void load_png_texture_sokol(const char *file_name, sg_image* image, sg_sampler* sampler);
 char *tokenize(char *str, const char *delim, char **key);
 int char_width(char input);
 int string_width(const char *input);

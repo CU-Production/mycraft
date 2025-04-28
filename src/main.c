@@ -1,5 +1,5 @@
-#include <glad/glad.h>
-#include <GLFW/glfw3.h>
+#include "glfw_glue.h"
+#include "lodepng.h"
 #include <curl/curl.h>
 #include <math.h>
 #include <stdio.h>
@@ -19,6 +19,9 @@
 #include "tinycthread.h"
 #include "util.h"
 #include "world.h"
+#define SOKOL_GLCORE
+#include "sokol_gfx.h"
+#include "sokol_log.h"
 
 #define MAX_CHUNKS 8192
 #define MAX_PLAYERS 128
@@ -50,8 +53,8 @@ typedef struct {
     int dirty;
     int miny;
     int maxy;
-    GLuint buffer;
-    GLuint sign_buffer;
+    unsigned int buffer;
+    unsigned int sign_buffer;
 } Chunk;
 
 typedef struct {
@@ -63,7 +66,7 @@ typedef struct {
     int miny;
     int maxy;
     int faces;
-    GLfloat *data;
+    float *data;
 } WorkerItem;
 
 typedef struct {
@@ -97,22 +100,22 @@ typedef struct {
     State state;
     State state1;
     State state2;
-    GLuint buffer;
+    unsigned int buffer;
 } Player;
 
 typedef struct {
-    GLuint program;
-    GLuint position;
-    GLuint normal;
-    GLuint uv;
-    GLuint matrix;
-    GLuint sampler;
-    GLuint camera;
-    GLuint timer;
-    GLuint extra1;
-    GLuint extra2;
-    GLuint extra3;
-    GLuint extra4;
+    unsigned int program;
+    unsigned int position;
+    unsigned int normal;
+    unsigned int uv;
+    unsigned int matrix;
+    unsigned int sampler;
+    unsigned int camera;
+    unsigned int timer;
+    unsigned int extra1;
+    unsigned int extra2;
+    unsigned int extra3;
+    unsigned int extra4;
 } Attrib;
 
 typedef struct {
@@ -155,6 +158,25 @@ typedef struct {
 
 static Model model;
 static Model *g = &model;
+
+static struct {
+    struct {
+        sg_image   tex;
+        sg_sampler smp;
+    } font_png;
+    struct {
+        sg_image   tex;
+        sg_sampler smp;
+    } sky_png;
+    struct {
+        sg_image   tex;
+        sg_sampler smp;
+    } sign_png;
+    struct {
+        sg_image   tex;
+        sg_sampler smp;
+    } texture_png;
+} sokol_state;
 
 int chunked(float x) {
     return floorf(roundf(x) / CHUNK_SIZE);
@@ -2361,23 +2383,8 @@ void on_mouse_button(GLFWwindow *window, int button, int action, int mods) {
 }
 
 void create_window() {
-    int window_width = WINDOW_WIDTH;
-    int window_height = WINDOW_HEIGHT;
-    GLFWmonitor *monitor = NULL;
-    if (FULLSCREEN) {
-        int mode_count;
-        monitor = glfwGetPrimaryMonitor();
-        const GLFWvidmode *modes = glfwGetVideoModes(monitor, &mode_count);
-        window_width = modes[mode_count - 1].width;
-        window_height = modes[mode_count - 1].height;
-    }
-    glfwWindowHint(GLFW_CLIENT_API, GLFW_OPENGL_API);
-    glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
-    glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
-    glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
-    glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE);
-    g->window = glfwCreateWindow(
-        window_width, window_height, "Craft", monitor, NULL);
+    glfw_init(&(glfw_desc_t){ .title = "Craft", .width = WINDOW_WIDTH, .height = WINDOW_HEIGHT });
+    g->window = glfw_window();
 }
 
 void handle_mouse_input() {
@@ -2617,53 +2624,17 @@ int main(int __argc, char **__argv)
     glfwSetMouseButtonCallback(g->window, on_mouse_button);
     glfwSetScrollCallback(g->window, on_scroll);
 
-    gladLoadGL();
-    printf("OpenGL Version: %s\n", glGetString(GL_VERSION));
-
-    // modern GL VAO
-    GLuint VAO;
-    glGenVertexArrays(1, &VAO);
-    glBindVertexArray(VAO);
-
-    glEnable(GL_CULL_FACE);
-    glEnable(GL_DEPTH_TEST);
-    glLogicOp(GL_INVERT);
-    glClearColor(0, 0, 0, 1);
+    // setup sokol_gfx
+    sg_setup(&(sg_desc){
+        .environment = glfw_environment(),
+        .logger.func = slog_func,
+    });
 
     // LOAD TEXTURES //
-    GLuint texture;
-    glGenTextures(1, &texture);
-    glActiveTexture(GL_TEXTURE0);
-    glBindTexture(GL_TEXTURE_2D, texture);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-    load_png_texture("textures/texture.png");
-
-    GLuint font;
-    glGenTextures(1, &font);
-    glActiveTexture(GL_TEXTURE1);
-    glBindTexture(GL_TEXTURE_2D, font);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-    load_png_texture("textures/font.png");
-
-    GLuint sky;
-    glGenTextures(1, &sky);
-    glActiveTexture(GL_TEXTURE2);
-    glBindTexture(GL_TEXTURE_2D, sky);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-    load_png_texture("textures/sky.png");
-
-    GLuint sign;
-    glGenTextures(1, &sign);
-    glActiveTexture(GL_TEXTURE3);
-    glBindTexture(GL_TEXTURE_2D, sign);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-    load_png_texture("textures/sign.png");
+    load_png_texture_sokol("textures/font.png", &sokol_state.font_png.tex, &sokol_state.font_png.smp);
+    load_png_texture_sokol("textures/sign.png", &sokol_state.sign_png.tex, &sokol_state.sign_png.smp);
+    load_png_texture_sokol("textures/sky.png", &sokol_state.sky_png.tex, &sokol_state.sky_png.smp);
+    load_png_texture_sokol("textures/texture.png", &sokol_state.texture_png.tex, &sokol_state.texture_png.smp);
 
     // LOAD SHADERS //
     Attrib block_attrib = {0};
@@ -2971,10 +2942,8 @@ int main(int __argc, char **__argv)
         delete_all_players();
     }
 
-    // modern GL VAO
-    glBindVertexArray(0);
-    glDeleteVertexArrays(1, &VAO);
-
+    // cleanup
+    sg_shutdown();
     glfwTerminate();
     curl_global_cleanup();
     return 0;

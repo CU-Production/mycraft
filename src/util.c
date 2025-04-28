@@ -148,6 +148,36 @@ void load_png_texture(const char *file_name) {
     free(data);
 }
 
+void load_png_texture_sokol(const char *file_name, sg_image *image, sg_sampler *sampler) {
+    unsigned int error;
+    unsigned char *data;
+    unsigned int width, height;
+    error = lodepng_decode32_file(&data, &width, &height, file_name);
+    if (error) {
+        fprintf(stderr, "load_png_texture %s failed, error %u: %s\n", file_name, error, lodepng_error_text(error));
+        exit(1);
+    }
+    flip_image_vertical(data, width, height);
+
+    sg_image _image = sg_make_image(&(sg_image_desc){
+        .width = width,
+        .height = height,
+        .pixel_format = SG_PIXELFORMAT_RGBA8,
+        .usage = SG_USAGE_STREAM,
+        .label = file_name
+    });
+
+    sg_sampler _sampler = sg_make_sampler(&(sg_sampler_desc){
+        .min_filter = SG_FILTER_NEAREST,
+        .mag_filter = SG_FILTER_NEAREST,
+    });
+
+    image = &_image;
+    sampler = &_sampler;
+
+    free(data);
+}
+
 char *tokenize(char *str, const char *delim, char **key) {
     char *result;
     if (str == NULL) {
