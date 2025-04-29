@@ -3,7 +3,7 @@
 @ctype vec3  HMM_Vec3
 @ctype vec2  HMM_Vec2
 
-@vs vs
+@vs line_vs
 layout(binding=0) uniform line_vs_params {
     mat4 matrix;
 };
@@ -15,7 +15,7 @@ void main() {
 }
 @end
 
-@fs fs
+@fs line_fs
 out vec4 fragColor;
 
 void main() {
@@ -23,4 +23,4 @@ void main() {
 }
 @end
 
-@program line vs fs
+@program line line_vs line_fs

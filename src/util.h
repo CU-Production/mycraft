@@ -1,10 +1,11 @@
 #ifndef _util_h_
 #define _util_h_
 
+#define SOKOL_DEBUG
 #define SOKOL_GLCORE
 #include "sokol_gfx.h"
-#include <GLFW/glfw3.h>
 #include "config.h"
+#include "HandmadeMath.h"
 
 #define PI 3.14159265359
 #define DEGREES(radians) ((radians) * 180 / PI)
@@ -30,20 +31,16 @@ int rand_int(int n);
 double rand_double();
 void update_fps(FPS *fps);
 
-GLuint gen_buffer(GLsizei size, GLfloat *data);
-void del_buffer(GLuint buffer);
-GLfloat *malloc_faces(int components, int faces);
-GLuint gen_faces(int components, int faces, GLfloat *data);
-GLuint make_shader(GLenum type, const char *source);
-GLuint load_shader(GLenum type, const char *path);
-GLuint make_program(GLuint shader1, GLuint shader2);
-GLuint load_program(const char *path1, const char *path2);
+uint32_t gen_buffer(size_t size, float *data);
+void del_buffer(uint32_t buffer);
+float *malloc_faces(int components, int faces);
+uint32_t gen_faces(int components, int faces, float *data);
 void flip_image_vertical(unsigned char *data, unsigned int width, unsigned int height);
-void load_png_texture(const char *file_name);
 void load_png_texture_sokol(const char *file_name, sg_image* image, sg_sampler* sampler);
 char *tokenize(char *str, const char *delim, char **key);
 int char_width(char input);
 int string_width(const char *input);
 int wrap(const char *input, int max_width, char *output, int max_length);
+HMM_Mat4 float16_to_mat4(const float* value);
 
 #endif

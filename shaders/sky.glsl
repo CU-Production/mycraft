@@ -3,14 +3,13 @@
 @ctype vec3  HMM_Vec3
 @ctype vec2  HMM_Vec2
 
-@vs vs
+@vs sky_vs
 layout(binding=0) uniform sky_vs_params {
     mat4 matrix;
 };
 
 layout (location = 0) in vec4 position;
-layout (location = 1) in vec3 normal;
-layout (location = 2) in vec2 uv;
+layout (location = 1) in vec2 uv;
 
 out vec2 fragment_uv;
 
@@ -20,7 +19,7 @@ void main() {
 }
 @end
 
-@fs fs
+@fs sky_fs
 layout(binding=0) uniform texture2D sky_tex;
 layout(binding=0) uniform sampler sky_smp;
 layout(binding=1) uniform sky_ps_params {
@@ -36,4 +35,4 @@ void main() {
 }
 @end
 
-@program sky vs fs
+@program sky sky_vs sky_fs

@@ -3,7 +3,7 @@
 @ctype vec3  HMM_Vec3
 @ctype vec2  HMM_Vec2
 
-@vs vs
+@vs block_vs
 layout(binding=0) uniform block_vs_params {
     mat4 matrix;
     vec3 camera;
@@ -45,7 +45,7 @@ void main() {
 }
 @end
 
-@fs fs
+@fs block_fs
 layout(binding=0) uniform texture2D block_color_tex;
 layout(binding=0) uniform sampler   block_color_smp;
 layout(binding=1) uniform texture2D block_sky_tex;
@@ -91,4 +91,4 @@ void main() {
 }
 @end
 
-@program block vs fs
+@program block block_vs block_fs

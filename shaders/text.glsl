@@ -3,7 +3,7 @@
 @ctype vec3 HMM_Vec3
 @ctype vec2 HMM_Vec2
 
-@vs vs
+@vs text_vs
 layout(binding=0) uniform text_vs_params {
     mat4 matrix;
 };
@@ -19,7 +19,7 @@ void main() {
 }
 @end
 
-@fs fs
+@fs text_fs
 layout(binding=0) uniform texture2D text_tex;
 layout(binding=0) uniform sampler text_smp;
 layout(binding=1) uniform text_ps_params {
@@ -43,4 +43,4 @@ void main() {
 }
 @end
 
-@program text vs fs
+@program text text_vs text_fs

@@ -1,4 +1,3 @@
-#include "glfw_glue.h"
 #include "lodepng.h"
 #include <curl/curl.h>
 #include <math.h>
@@ -21,8 +20,11 @@
 #include "world.h"
 #include "stdint.h"
 #define SOKOL_GLCORE
+#define SOKOL_DEBUG
+#define SOKOL_IMPL
 #include "sokol_gfx.h"
 #include "sokol_log.h"
+#include "glfw_glue.h"
 
 #include "HandmadeMath.h"
 #include "../shaders/block.glsl.h"
@@ -31,7 +33,7 @@
 #include "../shaders/text.glsl.h"
 
 #define MAX_CHUNKS 8192
-#define MAX_PLAYERS 128
+#define MAX_PLAYERS 16
 #define WORKERS 4
 #define MAX_TEXT_LENGTH 256
 #define MAX_NAME_LENGTH 32
@@ -111,18 +113,19 @@ typedef struct {
 } Player;
 
 typedef struct {
-    unsigned int program;
-    unsigned int position;
-    unsigned int normal;
-    unsigned int uv;
-    unsigned int matrix;
-    unsigned int sampler;
-    unsigned int camera;
-    unsigned int timer;
-    unsigned int extra1;
-    unsigned int extra2;
-    unsigned int extra3;
-    unsigned int extra4;
+    uint32_t program;
+    sg_pipeline pipeline;
+    uint32_t position;
+    uint32_t normal;
+    uint32_t uv;
+    uint32_t matrix;
+    uint32_t sampler;
+    uint32_t camera;
+    uint32_t timer;
+    uint32_t extra1;
+    uint32_t extra2;
+    uint32_t extra3;
+    uint32_t extra4;
 } Attrib;
 
 typedef struct {
@@ -264,7 +267,7 @@ void get_motion_vector(int flying, int sz, int sx, float rx, float ry,
     }
 }
 
-GLuint gen_crosshair_buffer() {
+uint32_t gen_crosshair_buffer() {
     int x = g->width / 2;
     int y = g->height / 2;
     int p = 10 * g->scale;
@@ -275,20 +278,20 @@ GLuint gen_crosshair_buffer() {
     return gen_buffer(sizeof(data), data);
 }
 
-GLuint gen_wireframe_buffer(float x, float y, float z, float n) {
+uint32_t gen_wireframe_buffer(float x, float y, float z, float n) {
     float data[72];
     make_cube_wireframe(data, x, y, z, n);
     return gen_buffer(sizeof(data), data);
 }
 
-GLuint gen_sky_buffer() {
+uint32_t gen_sky_buffer() {
     float data[12288];
     make_sphere(data, 1, 3);
     return gen_buffer(sizeof(data), data);
 }
 
-GLuint gen_cube_buffer(float x, float y, float z, float n, int w) {
-    GLfloat *data = malloc_faces(10, 6);
+uint32_t gen_cube_buffer(float x, float y, float z, float n, int w) {
+    float *data = malloc_faces(10, 6);
     float ao[6][4] = {0};
     float light[6][4] = {
         {0.5, 0.5, 0.5, 0.5},
@@ -302,23 +305,23 @@ GLuint gen_cube_buffer(float x, float y, float z, float n, int w) {
     return gen_faces(10, 6, data);
 }
 
-GLuint gen_plant_buffer(float x, float y, float z, float n, int w) {
-    GLfloat *data = malloc_faces(10, 4);
+uint32_t gen_plant_buffer(float x, float y, float z, float n, int w) {
+    float *data = malloc_faces(10, 4);
     float ao = 0;
     float light = 1;
     make_plant(data, ao, light, x, y, z, n, w, 45);
     return gen_faces(10, 4, data);
 }
 
-GLuint gen_player_buffer(float x, float y, float z, float rx, float ry) {
-    GLfloat *data = malloc_faces(10, 6);
+uint32_t gen_player_buffer(float x, float y, float z, float rx, float ry) {
+    float *data = malloc_faces(10, 6);
     make_player(data, x, y, z, rx, ry);
     return gen_faces(10, 6, data);
 }
 
-GLuint gen_text_buffer(float x, float y, float n, char *text) {
+uint32_t gen_text_buffer(float x, float y, float n, char *text) {
     int length = strlen(text);
-    GLfloat *data = malloc_faces(4, length);
+    float *data = malloc_faces(4, length);
     for (int i = 0; i < length; i++) {
         make_character(data + i * 24, x, y, n / 2, n, text[i]);
         x += n;
@@ -326,114 +329,95 @@ GLuint gen_text_buffer(float x, float y, float n, char *text) {
     return gen_faces(4, length, data);
 }
 
-void draw_triangles_3d_ao(Attrib *attrib, GLuint buffer, int count) {
-    glBindBuffer(GL_ARRAY_BUFFER, buffer);
-    glEnableVertexAttribArray(attrib->position);
-    glEnableVertexAttribArray(attrib->normal);
-    glEnableVertexAttribArray(attrib->uv);
-    glVertexAttribPointer(attrib->position, 3, GL_FLOAT, GL_FALSE,
-        sizeof(GLfloat) * 10, 0);
-    glVertexAttribPointer(attrib->normal, 3, GL_FLOAT, GL_FALSE,
-        sizeof(GLfloat) * 10, (GLvoid *)(sizeof(GLfloat) * 3));
-    glVertexAttribPointer(attrib->uv, 4, GL_FLOAT, GL_FALSE,
-        sizeof(GLfloat) * 10, (GLvoid *)(sizeof(GLfloat) * 6));
-    glDrawArrays(GL_TRIANGLES, 0, count);
-    glDisableVertexAttribArray(attrib->position);
-    glDisableVertexAttribArray(attrib->normal);
-    glDisableVertexAttribArray(attrib->uv);
-    glBindBuffer(GL_ARRAY_BUFFER, 0);
+void draw_triangles_3d_ao(Attrib *attrib, uint32_t buffer, int count) {
+    if (buffer == 0) return;
+    sg_bindings bind = {
+        .vertex_buffers[0].id = buffer,
+        .images[IMG_block_color_tex]   = sokol_state.texture_png.tex,
+        .images[IMG_block_sky_tex]     = sokol_state.sky_png.tex,
+        .samplers[SMP_block_color_smp] = sokol_state.texture_png.smp,
+        .samplers[SMP_block_sky_smp]   = sokol_state.sky_png.smp,
+    };
+    sg_apply_bindings(&bind);
+    sg_draw(0, count,1 );
 }
 
-void draw_triangles_3d_text(Attrib *attrib, GLuint buffer, int count) {
-    glBindBuffer(GL_ARRAY_BUFFER, buffer);
-    glEnableVertexAttribArray(attrib->position);
-    glEnableVertexAttribArray(attrib->uv);
-    glVertexAttribPointer(attrib->position, 3, GL_FLOAT, GL_FALSE,
-        sizeof(GLfloat) * 5, 0);
-    glVertexAttribPointer(attrib->uv, 2, GL_FLOAT, GL_FALSE,
-        sizeof(GLfloat) * 5, (GLvoid *)(sizeof(GLfloat) * 3));
-    glDrawArrays(GL_TRIANGLES, 0, count);
-    glDisableVertexAttribArray(attrib->position);
-    glDisableVertexAttribArray(attrib->uv);
-    glBindBuffer(GL_ARRAY_BUFFER, 0);
+void draw_triangles_3d_text(Attrib *attrib, uint32_t buffer, int count) {
+    if (buffer == 0) return;
+    sg_bindings bind = {
+        .vertex_buffers[0].id = buffer,
+        .images[IMG_text_tex]   = sokol_state.sign_png.tex,
+        .samplers[SMP_text_smp] = sokol_state.sign_png.smp,
+    };
+    sg_apply_bindings(&bind);
+    sg_draw(0, count,1 );
 }
 
-void draw_triangles_3d(Attrib *attrib, GLuint buffer, int count) {
-    glBindBuffer(GL_ARRAY_BUFFER, buffer);
-    glEnableVertexAttribArray(attrib->position);
-    glEnableVertexAttribArray(attrib->normal);
-    glEnableVertexAttribArray(attrib->uv);
-    glVertexAttribPointer(attrib->position, 3, GL_FLOAT, GL_FALSE,
-        sizeof(GLfloat) * 8, 0);
-    glVertexAttribPointer(attrib->normal, 3, GL_FLOAT, GL_FALSE,
-        sizeof(GLfloat) * 8, (GLvoid *)(sizeof(GLfloat) * 3));
-    glVertexAttribPointer(attrib->uv, 2, GL_FLOAT, GL_FALSE,
-        sizeof(GLfloat) * 8, (GLvoid *)(sizeof(GLfloat) * 6));
-    glDrawArrays(GL_TRIANGLES, 0, count);
-    glDisableVertexAttribArray(attrib->position);
-    glDisableVertexAttribArray(attrib->normal);
-    glDisableVertexAttribArray(attrib->uv);
-    glBindBuffer(GL_ARRAY_BUFFER, 0);
+void draw_triangles_3d(Attrib *attrib, uint32_t buffer, int count) {
+    if (buffer == 0) return;
+    sg_bindings bind = {
+        .vertex_buffers[0].id = buffer,
+        .images[IMG_sky_tex]   = sokol_state.sky_png.tex,
+        .samplers[SMP_sky_smp] = sokol_state.sky_png.smp,
+    };
+    sg_apply_bindings(&bind);
+    sg_draw(0, count,1 );
 }
 
-void draw_triangles_2d(Attrib *attrib, GLuint buffer, int count) {
-    glBindBuffer(GL_ARRAY_BUFFER, buffer);
-    glEnableVertexAttribArray(attrib->position);
-    glEnableVertexAttribArray(attrib->uv);
-    glVertexAttribPointer(attrib->position, 2, GL_FLOAT, GL_FALSE,
-        sizeof(GLfloat) * 4, 0);
-    glVertexAttribPointer(attrib->uv, 2, GL_FLOAT, GL_FALSE,
-        sizeof(GLfloat) * 4, (GLvoid *)(sizeof(GLfloat) * 2));
-    glDrawArrays(GL_TRIANGLES, 0, count);
-    glDisableVertexAttribArray(attrib->position);
-    glDisableVertexAttribArray(attrib->uv);
-    glBindBuffer(GL_ARRAY_BUFFER, 0);
+void draw_triangles_2d(Attrib *attrib, uint32_t buffer, int count) {
+    if (buffer == 0) return;
+    sg_bindings bind = {
+        .vertex_buffers[0].id = buffer,
+        .images[IMG_text_tex]   = sokol_state.font_png.tex,
+        .samplers[SMP_text_smp] = sokol_state.font_png.smp,
+    };
+    sg_apply_bindings(&bind);
+    sg_draw(0, count,1 );
 }
 
-void draw_lines(Attrib *attrib, GLuint buffer, int components, int count) {
-    glBindBuffer(GL_ARRAY_BUFFER, buffer);
-    glEnableVertexAttribArray(attrib->position);
-    glVertexAttribPointer(
-        attrib->position, components, GL_FLOAT, GL_FALSE, 0, 0);
-    glDrawArrays(GL_LINES, 0, count);
-    glDisableVertexAttribArray(attrib->position);
-    glBindBuffer(GL_ARRAY_BUFFER, 0);
+void draw_lines(Attrib *attrib, uint32_t buffer, int components, int count) {
+    if (buffer == 0) return;
+    sg_bindings bind = {
+        .vertex_buffers[0].id = buffer,
+    };
+    sg_apply_bindings(&bind);
+    sg_draw(0, count,1 );
 }
 
 void draw_chunk(Attrib *attrib, Chunk *chunk) {
     draw_triangles_3d_ao(attrib, chunk->buffer, chunk->faces * 6);
 }
 
-void draw_item(Attrib *attrib, GLuint buffer, int count) {
+void draw_item(Attrib *attrib, uint32_t buffer, int count) {
     draw_triangles_3d_ao(attrib, buffer, count);
 }
 
-void draw_text(Attrib *attrib, GLuint buffer, int length) {
-    glEnable(GL_BLEND);
-    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+void draw_text(Attrib *attrib, uint32_t buffer, int length) {
+    // glEnable(GL_BLEND);
+    // glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
     draw_triangles_2d(attrib, buffer, length * 6);
-    glDisable(GL_BLEND);
+    // glDisable(GL_BLEND);
 }
 
 void draw_signs(Attrib *attrib, Chunk *chunk) {
-    glEnable(GL_POLYGON_OFFSET_FILL);
-    glPolygonOffset(-8, -1024);
+    // glEnable(GL_POLYGON_OFFSET_FILL);
+    // glPolygonOffset(-8, -1024);
     draw_triangles_3d_text(attrib, chunk->sign_buffer, chunk->sign_faces * 6);
-    glDisable(GL_POLYGON_OFFSET_FILL);
+    // glDisable(GL_POLYGON_OFFSET_FILL);
 }
 
-void draw_sign(Attrib *attrib, GLuint buffer, int length) {
-    glEnable(GL_POLYGON_OFFSET_FILL);
-    glPolygonOffset(-8, -1024);
+void draw_sign(Attrib *attrib, uint32_t buffer, int length) {
+    // glEnable(GL_POLYGON_OFFSET_FILL);
+    // glPolygonOffset(-8, -1024);
     draw_triangles_3d_text(attrib, buffer, length * 6);
-    glDisable(GL_POLYGON_OFFSET_FILL);
+    // glDisable(GL_POLYGON_OFFSET_FILL);
 }
 
-void draw_cube(Attrib *attrib, GLuint buffer) {
+void draw_cube(Attrib *attrib, uint32_t buffer) {
     draw_item(attrib, buffer, 36);
 }
 
-void draw_plant(Attrib *attrib, GLuint buffer) {
+void draw_plant(Attrib *attrib, uint32_t buffer) {
     draw_item(attrib, buffer, 24);
 }
 
@@ -787,7 +771,7 @@ int player_intersects_block(
 }
 
 int _gen_sign_buffer(
-    GLfloat *data, float x, float y, float z, int face, const char *text)
+    float *data, float x, float y, float z, int face, const char *text)
 {
     static const int glyph_dx[8] = {0, 0, -1, 1, 1, 0, -1, 0};
     static const int glyph_dz[8] = {1, -1, 0, 0, 0, -1, 0, 1};
@@ -860,7 +844,7 @@ void gen_sign_buffer(Chunk *chunk) {
     }
 
     // second pass - generate geometry
-    GLfloat *data = malloc_faces(5, max_faces);
+    float *data = malloc_faces(5, max_faces);
     int faces = 0;
     for (int i = 0; i < signs->size; i++) {
         Sign *e = signs->data + i;
@@ -1088,7 +1072,7 @@ void compute_chunk(WorkerItem *item) {
     } END_MAP_FOR_EACH;
 
     // generate geometry
-    GLfloat *data = malloc_faces(10, faces);
+    float *data = malloc_faces(10, faces);
     int offset = 0;
     MAP_FOR_EACH(map, ex, ey, ez, ew) {
         if (ew <= 0) {
@@ -1652,15 +1636,20 @@ int render_chunks(Attrib *attrib, Player *player) {
         s->x, s->y, s->z, s->rx, s->ry, g->fov, g->ortho, g->render_radius);
     float planes[6][4];
     frustum_planes(planes, g->render_radius, matrix);
-    glUseProgram(attrib->program);
-    glUniformMatrix4fv(attrib->matrix, 1, GL_FALSE, matrix);
-    glUniform3f(attrib->camera, s->x, s->y, s->z);
-    glUniform1i(attrib->sampler, 0);
-    glUniform1i(attrib->extra1, 2);
-    glUniform1f(attrib->extra2, light);
-    glUniform1f(attrib->extra3, g->render_radius * CHUNK_SIZE);
-    glUniform1i(attrib->extra4, g->ortho);
-    glUniform1f(attrib->timer, time_of_day());
+    sg_apply_pipeline(attrib->pipeline);
+    block_vs_params_t vs_params = {
+        .matrix = float16_to_mat4(matrix),
+        .camera = HMM_V3(s->x, s->y, s->z),
+        .fog_distance = (float)(g->render_radius * CHUNK_SIZE),
+        .ortho = g->ortho,
+    };
+    block_ps_params_t ps_params = {
+        .timer = time_of_day(),
+        .daylight = light,
+        .ortho = g->ortho,
+    };
+    sg_apply_uniforms(UB_block_vs_params, &SG_RANGE(vs_params));
+    sg_apply_uniforms(UB_block_ps_params, &SG_RANGE(ps_params));
     for (int i = 0; i < g->chunk_count; i++) {
         Chunk *chunk = g->chunks + i;
         if (chunk_distance(chunk, p, q) > g->render_radius) {
@@ -1687,10 +1676,15 @@ void render_signs(Attrib *attrib, Player *player) {
         s->x, s->y, s->z, s->rx, s->ry, g->fov, g->ortho, g->render_radius);
     float planes[6][4];
     frustum_planes(planes, g->render_radius, matrix);
-    glUseProgram(attrib->program);
-    glUniformMatrix4fv(attrib->matrix, 1, GL_FALSE, matrix);
-    glUniform1i(attrib->sampler, 3);
-    glUniform1i(attrib->extra1, 1);
+    sg_apply_pipeline(attrib->pipeline);
+    text_vs_params_t vs_params = {
+        .matrix = float16_to_mat4(matrix),
+    };
+    text_ps_params_t ps_params = {
+        .is_sign = 1,
+    };
+    sg_apply_uniforms(UB_text_vs_params, &SG_RANGE(vs_params));
+    sg_apply_uniforms(UB_text_ps_params, &SG_RANGE(ps_params));
     for (int i = 0; i < g->chunk_count; i++) {
         Chunk *chunk = g->chunks + i;
         if (chunk_distance(chunk, p, q) > g->sign_radius) {
@@ -1718,16 +1712,21 @@ void render_sign(Attrib *attrib, Player *player) {
     set_matrix_3d(
         matrix, g->width, g->height,
         s->x, s->y, s->z, s->rx, s->ry, g->fov, g->ortho, g->render_radius);
-    glUseProgram(attrib->program);
-    glUniformMatrix4fv(attrib->matrix, 1, GL_FALSE, matrix);
-    glUniform1i(attrib->sampler, 3);
-    glUniform1i(attrib->extra1, 1);
+    sg_apply_pipeline(attrib->pipeline);
+    text_vs_params_t vs_params = {
+        .matrix = float16_to_mat4(matrix),
+    };
+    text_ps_params_t ps_params = {
+        .is_sign = 1,
+    };
+    sg_apply_uniforms(UB_text_vs_params, &SG_RANGE(vs_params));
+    sg_apply_uniforms(UB_text_ps_params, &SG_RANGE(ps_params));
     char text[MAX_SIGN_LENGTH];
     strncpy(text, g->typing_buffer + 1, MAX_SIGN_LENGTH);
     text[MAX_SIGN_LENGTH - 1] = '\0';
-    GLfloat *data = malloc_faces(5, strlen(text));
+    float *data = malloc_faces(5, strlen(text));
     int length = _gen_sign_buffer(data, x, y, z, face, text);
-    GLuint buffer = gen_faces(5, length, data);
+    uint32_t buffer = gen_faces(5, length, data);
     draw_sign(attrib, buffer, length);
     del_buffer(buffer);
 }
@@ -1738,11 +1737,20 @@ void render_players(Attrib *attrib, Player *player) {
     set_matrix_3d(
         matrix, g->width, g->height,
         s->x, s->y, s->z, s->rx, s->ry, g->fov, g->ortho, g->render_radius);
-    glUseProgram(attrib->program);
-    glUniformMatrix4fv(attrib->matrix, 1, GL_FALSE, matrix);
-    glUniform3f(attrib->camera, s->x, s->y, s->z);
-    glUniform1i(attrib->sampler, 0);
-    glUniform1f(attrib->timer, time_of_day());
+    sg_apply_pipeline(attrib->pipeline);
+    block_vs_params_t vs_params = {
+        .matrix = float16_to_mat4(matrix),
+        .camera = HMM_V3(s->x, s->y, s->z),
+        .fog_distance = (float)(g->render_radius * CHUNK_SIZE),
+        .ortho = g->ortho,
+    };
+    block_ps_params_t ps_params = {
+        .timer = time_of_day(),
+        .daylight = 0,
+        .ortho = g->ortho,
+    };
+    sg_apply_uniforms(UB_block_vs_params, &SG_RANGE(vs_params));
+    sg_apply_uniforms(UB_block_ps_params, &SG_RANGE(ps_params));
     for (int i = 0; i < g->player_count; i++) {
         Player *other = g->players + i;
         if (other != player) {
@@ -1751,16 +1759,21 @@ void render_players(Attrib *attrib, Player *player) {
     }
 }
 
-void render_sky(Attrib *attrib, Player *player, GLuint buffer) {
+void render_sky(Attrib *attrib, Player *player, uint32_t buffer) {
     State *s = &player->state;
     float matrix[16];
     set_matrix_3d(
         matrix, g->width, g->height,
         0, 0, 0, s->rx, s->ry, g->fov, 0, g->render_radius);
-    glUseProgram(attrib->program);
-    glUniformMatrix4fv(attrib->matrix, 1, GL_FALSE, matrix);
-    glUniform1i(attrib->sampler, 2);
-    glUniform1f(attrib->timer, time_of_day());
+    sg_apply_pipeline(attrib->pipeline);
+    sky_vs_params_t vs_params = {
+        .matrix = float16_to_mat4(matrix),
+    };
+    sky_ps_params_t ps_params = {
+        .timer = time_of_day(),
+    };
+    sg_apply_uniforms(UB_sky_vs_params, &SG_RANGE(vs_params));
+    sg_apply_uniforms(UB_sky_ps_params, &SG_RANGE(ps_params));
     draw_triangles_3d(attrib, buffer, 512 * 3);
 }
 
@@ -1773,46 +1786,55 @@ void render_wireframe(Attrib *attrib, Player *player) {
     int hx, hy, hz;
     int hw = hit_test(0, s->x, s->y, s->z, s->rx, s->ry, &hx, &hy, &hz);
     if (is_obstacle(hw)) {
-        glUseProgram(attrib->program);
-        glLineWidth(1);
-        glEnable(GL_COLOR_LOGIC_OP);
-        glUniformMatrix4fv(attrib->matrix, 1, GL_FALSE, matrix);
-        GLuint wireframe_buffer = gen_wireframe_buffer(hx, hy, hz, 0.53);
+        sg_apply_pipeline(attrib->pipeline);
+        line_vs_params_t vs_params = {
+            .matrix = float16_to_mat4(matrix),
+        };
+        sg_apply_uniforms(UB_line_vs_params, &SG_RANGE(vs_params));
+        uint32_t wireframe_buffer = gen_wireframe_buffer(hx, hy, hz, 0.53);
         draw_lines(attrib, wireframe_buffer, 3, 24);
         del_buffer(wireframe_buffer);
-        glDisable(GL_COLOR_LOGIC_OP);
     }
 }
 
 void render_crosshairs(Attrib *attrib) {
     float matrix[16];
     set_matrix_2d(matrix, g->width, g->height);
-    glUseProgram(attrib->program);
-    glLineWidth(4 * g->scale);
-    glEnable(GL_COLOR_LOGIC_OP);
-    glUniformMatrix4fv(attrib->matrix, 1, GL_FALSE, matrix);
-    GLuint crosshair_buffer = gen_crosshair_buffer();
+    sg_apply_pipeline(attrib->pipeline);
+    line_vs_params_t vs_params = {
+        .matrix = float16_to_mat4(matrix),
+    };
+    sg_apply_uniforms(UB_line_vs_params, &SG_RANGE(vs_params));
+    uint32_t crosshair_buffer = gen_crosshair_buffer();
     draw_lines(attrib, crosshair_buffer, 2, 4);
     del_buffer(crosshair_buffer);
-    glDisable(GL_COLOR_LOGIC_OP);
 }
 
 void render_item(Attrib *attrib) {
     float matrix[16];
     set_matrix_item(matrix, g->width, g->height, g->scale);
-    glUseProgram(attrib->program);
-    glUniformMatrix4fv(attrib->matrix, 1, GL_FALSE, matrix);
-    glUniform3f(attrib->camera, 0, 0, 5);
-    glUniform1i(attrib->sampler, 0);
-    glUniform1f(attrib->timer, time_of_day());
+    sg_apply_pipeline(attrib->pipeline);
+    block_vs_params_t vs_params = {
+        .matrix = float16_to_mat4(matrix),
+        .camera = HMM_V3(0, 0, 5),
+        .fog_distance = (float)(g->render_radius * CHUNK_SIZE),
+        .ortho = g->ortho,
+    };
+    block_ps_params_t ps_params = {
+        .timer = time_of_day(),
+        .daylight = 0,
+        .ortho = g->ortho,
+    };
+    sg_apply_uniforms(UB_block_vs_params, &SG_RANGE(vs_params));
+    sg_apply_uniforms(UB_block_ps_params, &SG_RANGE(ps_params));
     int w = items[g->item_index];
     if (is_plant(w)) {
-        GLuint buffer = gen_plant_buffer(0, 0, 0, 0.5, w);
+        uint32_t buffer = gen_plant_buffer(0, 0, 0, 0.5, w);
         draw_plant(attrib, buffer);
         del_buffer(buffer);
     }
     else {
-        GLuint buffer = gen_cube_buffer(0, 0, 0, 0.5, w);
+        uint32_t buffer = gen_cube_buffer(0, 0, 0, 0.5, w);
         draw_cube(attrib, buffer);
         del_buffer(buffer);
     }
@@ -1823,13 +1845,18 @@ void render_text(
 {
     float matrix[16];
     set_matrix_2d(matrix, g->width, g->height);
-    glUseProgram(attrib->program);
-    glUniformMatrix4fv(attrib->matrix, 1, GL_FALSE, matrix);
-    glUniform1i(attrib->sampler, 1);
-    glUniform1i(attrib->extra1, 0);
+    sg_apply_pipeline(attrib->pipeline);
+    text_vs_params_t vs_params = {
+        .matrix = float16_to_mat4(matrix),
+    };
+    text_ps_params_t ps_params = {
+        .is_sign = 0,
+    };
+    sg_apply_uniforms(UB_text_vs_params, &SG_RANGE(vs_params));
+    sg_apply_uniforms(UB_text_ps_params, &SG_RANGE(ps_params));
     int length = strlen(text);
     x -= n * justify * (length - 1) / 2;
-    GLuint buffer = gen_text_buffer(x, y, n, text);
+    uint32_t buffer = gen_text_buffer(x, y, n, text);
     draw_text(attrib, buffer, length);
     del_buffer(buffer);
 }
@@ -2639,6 +2666,7 @@ int main(int __argc, char **__argv)
     sg_setup(&(sg_desc){
         .environment = glfw_environment(),
         .logger.func = slog_func,
+        .buffer_pool_size = 1024,
     });
 
     // LOAD TEXTURES //
@@ -2648,33 +2676,38 @@ int main(int __argc, char **__argv)
     load_png_texture_sokol("textures/texture.png", &sokol_state.texture_png.tex, &sokol_state.texture_png.smp);
 
     // LOAD SHADERS //
+    Attrib block_attrib = {0};
+    Attrib line_attrib = {0};
+    Attrib text_attrib = {0};
+    Attrib sky_attrib = {0};
     {
         sg_shader shd = sg_make_shader(block_shader_desc(sg_query_backend()));
         sokol_state.block_pip = sg_make_pipeline(&(sg_pipeline_desc){
             .layout = {
-                .buffers[0].stride = 44,
+                .buffers[0].stride = sizeof(float) * (3+3+4),
                 .attrs = {
-                    [ATTR_block_position].format = SG_VERTEXFORMAT_FLOAT4,
-                    [ATTR_block_normal].format   = SG_VERTEXFORMAT_FLOAT3,
-                    [ATTR_block_uv].format       = SG_VERTEXFORMAT_FLOAT4,
+                    [ATTR_block_position] = { .offset = 0,               .format = SG_VERTEXFORMAT_FLOAT3 },
+                    [ATTR_block_normal]   = { .offset = sizeof(float)*3, .format = SG_VERTEXFORMAT_FLOAT3 },
+                    [ATTR_block_uv]       = { .offset = sizeof(float)*6, .format = SG_VERTEXFORMAT_FLOAT4 },
                 }
             },
             .shader = shd,
-            .cull_mode = SG_CULLMODE_BACK,
+            .cull_mode = SG_CULLMODE_NONE,
             .depth = {
                 .write_enabled = true,
                 .compare = SG_COMPAREFUNC_LESS_EQUAL,
             },
             .label = "block-pipeline",
         });
+        block_attrib.pipeline = sokol_state.block_pip;
     }
     {
         sg_shader shd = sg_make_shader(line_shader_desc(sg_query_backend()));
         sokol_state.line_pip = sg_make_pipeline(&(sg_pipeline_desc){
             .layout = {
-                .buffers[0].stride = 16,
+                .buffers[0].stride = sizeof(float) * (3),
                 .attrs = {
-                    [ATTR_line_position].format = SG_VERTEXFORMAT_FLOAT4,
+                    [ATTR_line_position].format = SG_VERTEXFORMAT_FLOAT3,
                 }
             },
             .shader = shd,
@@ -2685,35 +2718,36 @@ int main(int __argc, char **__argv)
             },
             .label = "line-pipeline",
         });
+        line_attrib.pipeline = sokol_state.line_pip;
     }
     {
         sg_shader shd = sg_make_shader(sky_shader_desc(sg_query_backend()));
         sokol_state.sky_pip = sg_make_pipeline(&(sg_pipeline_desc){
             .layout = {
-                .buffers[0].stride = 36,
+                .buffers[0].stride = sizeof(float) * (3+3+2),
                 .attrs = {
-                    [ATTR_sky_position].format = SG_VERTEXFORMAT_FLOAT4,
-                    [ATTR_sky_normal].format   = SG_VERTEXFORMAT_FLOAT3,
-                    [ATTR_sky_uv].format       = SG_VERTEXFORMAT_FLOAT2,
+                    [ATTR_sky_position] = { .offset = 0,               .format = SG_VERTEXFORMAT_FLOAT3 },
+                    // [ATTR_sky_normal]   = { .offset = sizeof(float)*3, .format = SG_VERTEXFORMAT_FLOAT3 },
+                    [ATTR_sky_uv]       = { .offset = sizeof(float)*6, .format = SG_VERTEXFORMAT_FLOAT2 },
                 }
             },
             .shader = shd,
-            .cull_mode = SG_CULLMODE_BACK,
+            .cull_mode = SG_CULLMODE_FRONT,
             .depth = {
-                .write_enabled = true,
-                .compare = SG_COMPAREFUNC_LESS_EQUAL,
+                .write_enabled = false,
             },
             .label = "sky-pipeline",
         });
+        sky_attrib.pipeline = sokol_state.sky_pip;
     }
     {
         sg_shader shd = sg_make_shader(text_shader_desc(sg_query_backend()));
         sokol_state.text_pip = sg_make_pipeline(&(sg_pipeline_desc){
             .layout = {
-                .buffers[0].stride = 24,
+                .buffers[0].stride = sizeof(char) * (2+2),
                 .attrs = {
-                    [ATTR_text_position].format = SG_VERTEXFORMAT_FLOAT4,
-                    [ATTR_text_uv].format       = SG_VERTEXFORMAT_FLOAT2,
+                    [ATTR_text_position] = { .offset = 0,               .format = SG_VERTEXFORMAT_FLOAT2 },
+                    [ATTR_text_uv]       = { .offset = sizeof(float)*2, .format = SG_VERTEXFORMAT_FLOAT2 },
                 }
             },
             .shader = shd,
@@ -2728,9 +2762,11 @@ int main(int __argc, char **__argv)
             },
             .depth = {
                 .write_enabled = false,
+                .compare = SG_COMPAREFUNC_ALWAYS,
             },
             .label = "text-pipeline",
         });
+        text_attrib.pipeline = sokol_state.text_pip;
     }
 
     // CHECK COMMAND LINE ARGUMENTS //
@@ -2790,7 +2826,7 @@ int main(int __argc, char **__argv)
         FPS fps = {0, 0, 0};
         double last_commit = glfwGetTime();
         double last_update = glfwGetTime();
-        GLuint sky_buffer = gen_sky_buffer();
+        uint32_t sky_buffer = gen_sky_buffer();
 
         Player *me = g->players;
         State *s = &g->players->state;
@@ -2812,7 +2848,8 @@ int main(int __argc, char **__argv)
             // WINDOW SIZE AND SCALE //
             g->scale = get_scale_factor();
             glfwGetFramebufferSize(g->window, &g->width, &g->height);
-            glViewport(0, 0, g->width, g->height);
+            // glViewport(0, 0, g->width, g->height);
+            // sg_begin_pass(&(sg_pass){ .swapchain = glfw_swapchain() });
 
             // FRAME RATE //
             if (g->time_changed) {
@@ -2865,110 +2902,157 @@ int main(int __argc, char **__argv)
             Player *player = g->players + g->observe1;
 
             // RENDER 3-D SCENE //
-            glClear(GL_COLOR_BUFFER_BIT);
-            glClear(GL_DEPTH_BUFFER_BIT);
-            render_sky(&sky_attrib, player, sky_buffer);
-            glClear(GL_DEPTH_BUFFER_BIT);
-            int face_count = render_chunks(&block_attrib, player);
-            render_signs(&text_attrib, player);
-            render_sign(&text_attrib, player);
-            render_players(&block_attrib, player);
-            if (SHOW_WIREFRAME) {
-                render_wireframe(&line_attrib, player);
+            sg_begin_pass(&(sg_pass){
+                .action = {
+                    .colors[0] = {
+                        .load_action = SG_LOADACTION_CLEAR,
+                        .store_action = SG_STOREACTION_STORE,
+                        .clear_value = {0.1, 0.2, 0.3, 1},
+                    },
+                    .depth = {
+                        .load_action = SG_LOADACTION_CLEAR,
+                    }
+                },
+                .swapchain = glfw_swapchain(),
+                .label = "sky pass" });
+            {
+                render_sky(&sky_attrib, player, sky_buffer);
             }
+            sg_end_pass();
+            int face_count = 0;
+            sg_begin_pass(&(sg_pass){ .action = {
+                    .colors[0] = {
+                        .load_action = SG_LOADACTION_LOAD,
+                        .store_action = SG_STOREACTION_STORE,
+                    },
+                    .depth = {
+                        .load_action = SG_LOADACTION_CLEAR,
+                        .clear_value = 1.0f,
+                    }
+                },
+                .swapchain = glfw_swapchain(),
+                .label = "main pass" });
+            {
+                face_count = render_chunks(&block_attrib, player);
+                render_signs(&text_attrib, player);
+                render_sign(&text_attrib, player);
+                render_players(&block_attrib, player);
+                if (SHOW_WIREFRAME) {
+                    render_wireframe(&line_attrib, player);
+                }
+            }
+            sg_end_pass();
 
             // RENDER HUD //
-            glClear(GL_DEPTH_BUFFER_BIT);
-            if (SHOW_CROSSHAIRS) {
-                render_crosshairs(&line_attrib);
-            }
-            if (SHOW_ITEM) {
-                render_item(&block_attrib);
-            }
-
-            // RENDER TEXT //
-            char text_buffer[1024];
-            float ts = 12 * g->scale;
-            float tx = ts / 2;
-            float ty = g->height - ts;
-            if (SHOW_INFO_TEXT) {
-                int hour = time_of_day() * 24;
-                char am_pm = hour < 12 ? 'a' : 'p';
-                hour = hour % 12;
-                hour = hour ? hour : 12;
-                snprintf(
-                    text_buffer, 1024,
-                    "(%d, %d) (%.2f, %.2f, %.2f) [%d, %d, %d] %d%cm %dfps",
-                    chunked(s->x), chunked(s->z), s->x, s->y, s->z,
-                    g->player_count, g->chunk_count,
-                    face_count * 2, hour, am_pm, fps.fps);
-                render_text(&text_attrib, ALIGN_LEFT, tx, ty, ts, text_buffer);
-                ty -= ts * 2;
-            }
-            if (SHOW_CHAT_TEXT) {
-                for (int i = 0; i < MAX_MESSAGES; i++) {
-                    int index = (g->message_index + i) % MAX_MESSAGES;
-                    if (strlen(g->messages[index])) {
-                        render_text(&text_attrib, ALIGN_LEFT, tx, ty, ts,
-                            g->messages[index]);
+            sg_begin_pass(&(sg_pass){ .action = {
+                    .colors[0] = {
+                        .load_action = SG_LOADACTION_LOAD,
+                        .store_action = SG_STOREACTION_STORE,
+                    },
+                    .depth = {
+                        .load_action = SG_LOADACTION_CLEAR,
+                        .clear_value = 1.0f,
+                    }
+                },
+                .swapchain = glfw_swapchain(),
+                .label = "HUD pass" });
+            {
+                if (SHOW_CROSSHAIRS) {
+                    render_crosshairs(&line_attrib);
+                }
+                if (SHOW_ITEM) {
+                    render_item(&block_attrib);
+                }
+                // RENDER TEXT //
+                if (false)
+                {
+                    char text_buffer[1024];
+                    float ts = 12 * g->scale;
+                    float tx = ts / 2;
+                    float ty = g->height - ts;
+                    if (SHOW_INFO_TEXT) {
+                        int hour = time_of_day() * 24;
+                        char am_pm = hour < 12 ? 'a' : 'p';
+                        hour = hour % 12;
+                        hour = hour ? hour : 12;
+                        snprintf(
+                            text_buffer, 1024,
+                            "(%d, %d) (%.2f, %.2f, %.2f) [%d, %d, %d] %d%cm %dfps",
+                            chunked(s->x), chunked(s->z), s->x, s->y, s->z,
+                            g->player_count, g->chunk_count,
+                            face_count * 2, hour, am_pm, fps.fps);
+                        render_text(&text_attrib, ALIGN_LEFT, tx, ty, ts, text_buffer);
                         ty -= ts * 2;
+                    }
+                    if (SHOW_CHAT_TEXT) {
+                        for (int i = 0; i < MAX_MESSAGES; i++) {
+                            int index = (g->message_index + i) % MAX_MESSAGES;
+                            if (strlen(g->messages[index])) {
+                                render_text(&text_attrib, ALIGN_LEFT, tx, ty, ts,
+                                    g->messages[index]);
+                                ty -= ts * 2;
+                            }
+                        }
+                    }
+                    if (g->typing) {
+                        snprintf(text_buffer, 1024, "> %s", g->typing_buffer);
+                        render_text(&text_attrib, ALIGN_LEFT, tx, ty, ts, text_buffer);
+                        ty -= ts * 2;
+                    }
+                    if (SHOW_PLAYER_NAMES) {
+                        if (player != me) {
+                            render_text(&text_attrib, ALIGN_CENTER,
+                                g->width / 2, ts, ts, player->name);
+                        }
+                        Player *other = player_crosshair(player);
+                        if (other) {
+                            render_text(&text_attrib, ALIGN_CENTER,
+                                g->width / 2, g->height / 2 - ts - 24, ts,
+                                other->name);
+                        }
                     }
                 }
             }
-            if (g->typing) {
-                snprintf(text_buffer, 1024, "> %s", g->typing_buffer);
-                render_text(&text_attrib, ALIGN_LEFT, tx, ty, ts, text_buffer);
-                ty -= ts * 2;
-            }
-            if (SHOW_PLAYER_NAMES) {
-                if (player != me) {
-                    render_text(&text_attrib, ALIGN_CENTER,
-                        g->width / 2, ts, ts, player->name);
-                }
-                Player *other = player_crosshair(player);
-                if (other) {
-                    render_text(&text_attrib, ALIGN_CENTER,
-                        g->width / 2, g->height / 2 - ts - 24, ts,
-                        other->name);
-                }
-            }
+            sg_end_pass();
 
             // RENDER PICTURE IN PICTURE //
             if (g->observe2) {
-                player = g->players + g->observe2;
-
-                int pw = 256 * g->scale;
-                int ph = 256 * g->scale;
-                int offset = 32 * g->scale;
-                int pad = 3 * g->scale;
-                int sw = pw + pad * 2;
-                int sh = ph + pad * 2;
-
-                glEnable(GL_SCISSOR_TEST);
-                glScissor(g->width - sw - offset + pad, offset - pad, sw, sh);
-                glClear(GL_COLOR_BUFFER_BIT);
-                glDisable(GL_SCISSOR_TEST);
-                glClear(GL_DEPTH_BUFFER_BIT);
-                glViewport(g->width - pw - offset, offset, pw, ph);
-
-                g->width = pw;
-                g->height = ph;
-                g->ortho = 0;
-                g->fov = 65;
-
-                render_sky(&sky_attrib, player, sky_buffer);
-                glClear(GL_DEPTH_BUFFER_BIT);
-                render_chunks(&block_attrib, player);
-                render_signs(&text_attrib, player);
-                render_players(&block_attrib, player);
-                glClear(GL_DEPTH_BUFFER_BIT);
-                if (SHOW_PLAYER_NAMES) {
-                    render_text(&text_attrib, ALIGN_CENTER,
-                        pw / 2, ts, ts, player->name);
-                }
+                // pip not implement
+                // player = g->players + g->observe2;
+                //
+                // int pw = 256 * g->scale;
+                // int ph = 256 * g->scale;
+                // int offset = 32 * g->scale;
+                // int pad = 3 * g->scale;
+                // int sw = pw + pad * 2;
+                // int sh = ph + pad * 2;
+                //
+                // glEnable(GL_SCISSOR_TEST);
+                // glScissor(g->width - sw - offset + pad, offset - pad, sw, sh);
+                // glClear(GL_COLOR_BUFFER_BIT);
+                // glDisable(GL_SCISSOR_TEST);
+                // glClear(GL_DEPTH_BUFFER_BIT);
+                // glViewport(g->width - pw - offset, offset, pw, ph);
+                //
+                // g->width = pw;
+                // g->height = ph;
+                // g->ortho = 0;
+                // g->fov = 65;
+                //
+                // render_sky(&sky_attrib, player, sky_buffer);
+                // glClear(GL_DEPTH_BUFFER_BIT);
+                // render_chunks(&block_attrib, player);
+                // render_signs(&text_attrib, player);
+                // render_players(&block_attrib, player);
+                // glClear(GL_DEPTH_BUFFER_BIT);
+                // if (SHOW_PLAYER_NAMES) {
+                //     render_text(&text_attrib, ALIGN_CENTER,
+                //         pw / 2, ts, ts, player->name);
+                // }
             }
 
             // SWAP AND POLL //
+            sg_commit();
             glfwSwapBuffers(g->window);
             glfwPollEvents();
             if (glfwWindowShouldClose(g->window)) {
