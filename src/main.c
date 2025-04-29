@@ -2746,7 +2746,7 @@ int main(int __argc, char **__argv)
         sg_shader shd = sg_make_shader(text_shader_desc(sg_query_backend()));
         sokol_state.text_pip = sg_make_pipeline(&(sg_pipeline_desc){
             .layout = {
-                .buffers[0].stride = sizeof(char) * (2+2),
+                .buffers[0].stride = sizeof(float) * (2+2),
                 .attrs = {
                     [ATTR_text_position] = { .offset = 0,               .format = SG_VERTEXFORMAT_FLOAT2 },
                     [ATTR_text_uv]       = { .offset = sizeof(float)*2, .format = SG_VERTEXFORMAT_FLOAT2 },
@@ -2966,7 +2966,7 @@ int main(int __argc, char **__argv)
                     render_item(&block_attrib);
                 }
                 // RENDER TEXT //
-                if (false)
+                // if (false)
                 {
                     char text_buffer[1024];
                     float ts = 12 * g->scale;
