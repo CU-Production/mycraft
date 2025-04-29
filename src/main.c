@@ -21,12 +21,13 @@
 #include "stdint.h"
 #define SOKOL_GLCORE
 #define SOKOL_NO_ENTRY
-// #include "sokol_app.h"
+#include <assert.h>
+
+#include "sokol_app.h"
 #include "sokol_gfx.h"
 #include "sokol_glue.h"
 #include "sokol_time.h"
 #include "sokol_log.h"
-#include "glfw_glue.h"
 
 #include "HandmadeMath.h"
 #include "../shaders/block.glsl.h"
@@ -135,7 +136,7 @@ typedef struct {
 } Attrib;
 
 typedef struct {
-    GLFWwindow *window;
+    // GLFWwindow *window;
     Worker workers[WORKERS];
     Chunk chunks[MAX_CHUNKS];
     int chunk_count;
@@ -225,16 +226,16 @@ float get_daylight() {
     }
 }
 
-int get_scale_factor() {
-    int window_width, window_height;
-    int buffer_width, buffer_height;
-    glfwGetWindowSize(g->window, &window_width, &window_height);
-    glfwGetFramebufferSize(g->window, &buffer_width, &buffer_height);
-    int result = buffer_width / window_width;
-    result = MAX(1, result);
-    result = MIN(2, result);
-    return result;
-}
+// int get_scale_factor() {
+//     int window_width, window_height;
+//     int buffer_width, buffer_height;
+//     glfwGetWindowSize(g->window, &window_width, &window_height);
+//     glfwGetFramebufferSize(g->window, &buffer_width, &buffer_height);
+//     int result = buffer_width / window_width;
+//     result = MAX(1, result);
+//     result = MIN(2, result);
+//     return result;
+// }
 
 void get_sight_vector(float rx, float ry, float *vx, float *vy, float *vz) {
     float m = cosf(ry);
@@ -2242,14 +2243,13 @@ void on_middle_click() {
     }
 }
 
-void on_key(GLFWwindow *window, int key, int scancode, int action, int mods) {
-    int control = mods & (GLFW_MOD_CONTROL | GLFW_MOD_SUPER);
-    int exclusive =
-        glfwGetInputMode(window, GLFW_CURSOR) == GLFW_CURSOR_DISABLED;
-    if (action == GLFW_RELEASE) {
+void on_key(int key, int action, int mods) {
+    // int control = mods & (GLFW_MOD_CONTROL | GLFW_MOD_SUPER);
+    int exclusive = !sapp_mouse_shown();
+    if (action == SAPP_EVENTTYPE_KEY_UP) {
         return;
     }
-    if (key == GLFW_KEY_BACKSPACE) {
+    if (key == SAPP_KEYCODE_BACKSPACE) {
         if (g->typing) {
             int n = strlen(g->typing_buffer);
             if (n > 0) {
@@ -2257,63 +2257,63 @@ void on_key(GLFWwindow *window, int key, int scancode, int action, int mods) {
             }
         }
     }
-    if (action != GLFW_PRESS) {
+    if (action != SAPP_EVENTTYPE_KEY_DOWN) {
         return;
     }
-    if (key == GLFW_KEY_ESCAPE) {
+    if (key == SAPP_KEYCODE_ESCAPE) {
         if (g->typing) {
             g->typing = 0;
         }
         else if (exclusive) {
-            glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
+            sapp_show_mouse(true);
         }
     }
-    if (key == GLFW_KEY_ENTER) {
-        if (g->typing) {
-            if (mods & GLFW_MOD_SHIFT) {
-                int n = strlen(g->typing_buffer);
-                if (n < MAX_TEXT_LENGTH - 1) {
-                    g->typing_buffer[n] = '\r';
-                    g->typing_buffer[n + 1] = '\0';
-                }
-            }
-            else {
-                g->typing = 0;
-                if (g->typing_buffer[0] == CRAFT_KEY_SIGN) {
-                    Player *player = g->players;
-                    int x, y, z, face;
-                    if (hit_test_face(player, &x, &y, &z, &face)) {
-                        set_sign(x, y, z, face, g->typing_buffer + 1);
-                    }
-                }
-                else if (g->typing_buffer[0] == '/') {
-                    parse_command(g->typing_buffer, 1);
-                }
-                else {
-                    client_talk(g->typing_buffer);
-                }
-            }
-        }
-        else {
-            if (control) {
-                on_right_click();
-            }
-            else {
-                on_left_click();
-            }
-        }
-    }
-    if (control && key == 'V') {
-        const char *buffer = glfwGetClipboardString(window);
-        if (g->typing) {
-            g->suppress_char = 1;
-            strncat(g->typing_buffer, buffer,
-                MAX_TEXT_LENGTH - strlen(g->typing_buffer) - 1);
-        }
-        else {
-            parse_command(buffer, 0);
-        }
-    }
+    // if (key == SAPP_KEYCODE_ENTER) {
+    //     if (g->typing) {
+    //         if (mods & GLFW_MOD_SHIFT) {
+    //             int n = strlen(g->typing_buffer);
+    //             if (n < MAX_TEXT_LENGTH - 1) {
+    //                 g->typing_buffer[n] = '\r';
+    //                 g->typing_buffer[n + 1] = '\0';
+    //             }
+    //         }
+    //         else {
+    //             g->typing = 0;
+    //             if (g->typing_buffer[0] == CRAFT_KEY_SIGN) {
+    //                 Player *player = g->players;
+    //                 int x, y, z, face;
+    //                 if (hit_test_face(player, &x, &y, &z, &face)) {
+    //                     set_sign(x, y, z, face, g->typing_buffer + 1);
+    //                 }
+    //             }
+    //             else if (g->typing_buffer[0] == '/') {
+    //                 parse_command(g->typing_buffer, 1);
+    //             }
+    //             else {
+    //                 client_talk(g->typing_buffer);
+    //             }
+    //         }
+    //     }
+    //     else {
+    //         if (control) {
+    //             on_right_click();
+    //         }
+    //         else {
+    //             on_left_click();
+    //         }
+    //     }
+    // }
+    // if (control && key == 'V') {
+    //     const char *buffer = glfwGetClipboardString(window);
+    //     if (g->typing) {
+    //         g->suppress_char = 1;
+    //         strncat(g->typing_buffer, buffer,
+    //             MAX_TEXT_LENGTH - strlen(g->typing_buffer) - 1);
+    //     }
+    //     else {
+    //         parse_command(buffer, 0);
+    //     }
+    // }
     if (!g->typing) {
         if (key == CRAFT_KEY_FLY) {
             g->flying = !g->flying;
@@ -2342,106 +2342,86 @@ void on_key(GLFWwindow *window, int key, int scancode, int action, int mods) {
     }
 }
 
-void on_char(GLFWwindow *window, unsigned int u) {
-    if (g->suppress_char) {
-        g->suppress_char = 0;
+// void on_char(GLFWwindow *window, unsigned int u) {
+//     if (g->suppress_char) {
+//         g->suppress_char = 0;
+//         return;
+//     }
+//     if (g->typing) {
+//         if (u >= 32 && u < 128) {
+//             char c = (char)u;
+//             int n = strlen(g->typing_buffer);
+//             if (n < MAX_TEXT_LENGTH - 1) {
+//                 g->typing_buffer[n] = c;
+//                 g->typing_buffer[n + 1] = '\0';
+//             }
+//         }
+//     }
+//     else {
+//         if (u == CRAFT_KEY_CHAT) {
+//             g->typing = 1;
+//             g->typing_buffer[0] = '\0';
+//         }
+//         if (u == CRAFT_KEY_COMMAND) {
+//             g->typing = 1;
+//             g->typing_buffer[0] = '/';
+//             g->typing_buffer[1] = '\0';
+//         }
+//         if (u == CRAFT_KEY_SIGN) {
+//             g->typing = 1;
+//             g->typing_buffer[0] = CRAFT_KEY_SIGN;
+//             g->typing_buffer[1] = '\0';
+//         }
+//     }
+// }
+//
+// void on_scroll(GLFWwindow *window, double xdelta, double ydelta) {
+//     static double ypos = 0;
+//     ypos += ydelta;
+//     if (ypos < -SCROLL_THRESHOLD) {
+//         g->item_index = (g->item_index + 1) % item_count;
+//         ypos = 0;
+//     }
+//     if (ypos > SCROLL_THRESHOLD) {
+//         g->item_index--;
+//         if (g->item_index < 0) {
+//             g->item_index = item_count - 1;
+//         }
+//         ypos = 0;
+//     }
+// }
+//
+void on_mouse_button(int button, int action) {
+    int exclusive = !sapp_mouse_shown();
+    if (action != SAPP_EVENTTYPE_MOUSE_DOWN) {
         return;
     }
-    if (g->typing) {
-        if (u >= 32 && u < 128) {
-            char c = (char)u;
-            int n = strlen(g->typing_buffer);
-            if (n < MAX_TEXT_LENGTH - 1) {
-                g->typing_buffer[n] = c;
-                g->typing_buffer[n + 1] = '\0';
-            }
-        }
-    }
-    else {
-        if (u == CRAFT_KEY_CHAT) {
-            g->typing = 1;
-            g->typing_buffer[0] = '\0';
-        }
-        if (u == CRAFT_KEY_COMMAND) {
-            g->typing = 1;
-            g->typing_buffer[0] = '/';
-            g->typing_buffer[1] = '\0';
-        }
-        if (u == CRAFT_KEY_SIGN) {
-            g->typing = 1;
-            g->typing_buffer[0] = CRAFT_KEY_SIGN;
-            g->typing_buffer[1] = '\0';
-        }
-    }
-}
-
-void on_scroll(GLFWwindow *window, double xdelta, double ydelta) {
-    static double ypos = 0;
-    ypos += ydelta;
-    if (ypos < -SCROLL_THRESHOLD) {
-        g->item_index = (g->item_index + 1) % item_count;
-        ypos = 0;
-    }
-    if (ypos > SCROLL_THRESHOLD) {
-        g->item_index--;
-        if (g->item_index < 0) {
-            g->item_index = item_count - 1;
-        }
-        ypos = 0;
-    }
-}
-
-void on_mouse_button(GLFWwindow *window, int button, int action, int mods) {
-    int control = mods & (GLFW_MOD_CONTROL | GLFW_MOD_SUPER);
-    int exclusive =
-        glfwGetInputMode(window, GLFW_CURSOR) == GLFW_CURSOR_DISABLED;
-    if (action != GLFW_PRESS) {
-        return;
-    }
-    if (button == GLFW_MOUSE_BUTTON_LEFT) {
+    if (button == SAPP_MOUSEBUTTON_LEFT) {
         if (exclusive) {
-            if (control) {
-                on_right_click();
-            }
-            else {
-                on_left_click();
-            }
+            on_left_click();
         }
         else {
-            glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
+            sapp_show_mouse(false);
         }
     }
-    if (button == GLFW_MOUSE_BUTTON_RIGHT) {
+    if (button == SAPP_MOUSEBUTTON_RIGHT) {
         if (exclusive) {
-            if (control) {
-                on_light();
-            }
-            else {
-                on_right_click();
-            }
+            on_right_click();
         }
     }
-    if (button == GLFW_MOUSE_BUTTON_MIDDLE) {
+    if (button == SAPP_MOUSEBUTTON_MIDDLE) {
         if (exclusive) {
             on_middle_click();
         }
     }
 }
 
-void create_window() {
-    glfw_init(&(glfw_desc_t){ .title = "Craft", .width = WINDOW_WIDTH, .height = WINDOW_HEIGHT });
-    g->window = glfw_window();
-}
-
-void handle_mouse_input() {
-    int exclusive =
-        glfwGetInputMode(g->window, GLFW_CURSOR) == GLFW_CURSOR_DISABLED;
+void handle_mouse_input(float mx, float my) {
+    int exclusive = !sapp_mouse_shown();
     static double px = 0;
     static double py = 0;
     State *s = &g->players->state;
     if (exclusive && (px || py)) {
-        double mx, my;
-        glfwGetCursorPos(g->window, &mx, &my);
         float m = 0.0025;
         s->rx += (mx - px) * m;
         if (INVERT_MOUSE) {
@@ -2460,34 +2440,37 @@ void handle_mouse_input() {
         s->ry = MIN(s->ry, RADIANS(90));
         px = mx;
         py = my;
-    }
-    else {
-        glfwGetCursorPos(g->window, &px, &py);
+    } else {
+        px = mx;
+        py = my;
     }
 }
 
-void handle_movement(double dt) {
+void handle_movement(double dt, sapp_keycode inkey) {
     static float dy = 0;
     State *s = &g->players->state;
     int sz = 0;
     int sx = 0;
     if (!g->typing) {
         float m = dt * 1.0;
-        g->ortho = glfwGetKey(g->window, CRAFT_KEY_ORTHO) ? 64 : 0;
-        g->fov = glfwGetKey(g->window, CRAFT_KEY_ZOOM) ? 15 : 65;
-        if (glfwGetKey(g->window, CRAFT_KEY_FORWARD)) sz--;
-        if (glfwGetKey(g->window, CRAFT_KEY_BACKWARD)) sz++;
-        if (glfwGetKey(g->window, CRAFT_KEY_LEFT)) sx--;
-        if (glfwGetKey(g->window, CRAFT_KEY_RIGHT)) sx++;
-        if (glfwGetKey(g->window, GLFW_KEY_LEFT)) s->rx -= m;
-        if (glfwGetKey(g->window, GLFW_KEY_RIGHT)) s->rx += m;
-        if (glfwGetKey(g->window, GLFW_KEY_UP)) s->ry += m;
-        if (glfwGetKey(g->window, GLFW_KEY_DOWN)) s->ry -= m;
+        g->ortho = (inkey == CRAFT_KEY_ORTHO) ? 64 : 0;
+        g->fov = (inkey == CRAFT_KEY_ZOOM) ? 15 : 65;
+        switch (inkey) {
+            case CRAFT_KEY_FORWARD  : sz--;break;
+            case CRAFT_KEY_BACKWARD : sz++;break;
+            case CRAFT_KEY_LEFT     : sx--;break;
+            case CRAFT_KEY_RIGHT    : sx++;break;
+            case SAPP_KEYCODE_LEFT  : s->rx -= m;break;
+            case SAPP_KEYCODE_RIGHT : s->rx += m;break;
+            case SAPP_KEYCODE_UP    : s->ry += m;break;
+            case SAPP_KEYCODE_DOWN  : s->ry -= m;break;
+            default: break;
+        }
     }
     float vx, vy, vz;
     get_motion_vector(g->flying, sz, sx, s->rx, s->ry, &vx, &vy, &vz);
     if (!g->typing) {
-        if (glfwGetKey(g->window, CRAFT_KEY_JUMP)) {
+        if (inkey == CRAFT_KEY_JUMP) {
             if (g->flying) {
                 vy = 1;
             }
@@ -2588,13 +2571,13 @@ void parse_buffer(char *buffer) {
                 dirty_chunk(chunk);
             }
         }
-        double elapsed;
-        int day_length;
-        if (sscanf(line, "E,%lf,%d", &elapsed, &day_length) == 2) {
-            glfwSetTime(fmod(elapsed, day_length));
-            g->day_length = day_length;
-            g->time_changed = 1;
-        }
+        // double elapsed;
+        // int day_length;
+        // if (sscanf(line, "E,%lf,%d", &elapsed, &day_length) == 2) {
+        //     glfwSetTime(fmod(elapsed, day_length));
+        //     g->day_length = day_length;
+        //     g->time_changed = 1;
+        // }
         if (line[0] == 'T' && line[1] == ',') {
             char *text = line + 2;
             add_message(text);
@@ -2637,42 +2620,29 @@ void reset_model() {
     memset(g->messages, 0, sizeof(char) * MAX_MESSAGES * MAX_TEXT_LENGTH);
     g->message_index = 0;
     g->day_length = DAY_LENGTH;
-    glfwSetTime(g->day_length / 3.0);
+    // glfwSetTime(g->day_length / 3.0);
     g->time_changed = 1;
 }
 
-#if WIN32
-int APIENTRY WinMain(HINSTANCE hInst, HINSTANCE hInstPrev, PSTR cmdline, int cmdshow)
-#else
-int main(int __argc, char **__argv)
-#endif
-{
-    // INITIALIZATION //
-    curl_global_init(CURL_GLOBAL_DEFAULT);
-    srand(time(NULL));
-    rand();
+State *s;
+double last_commit = 0;
+double last_update = 0;
+double previous = 0;
+uint32_t sky_buffer = 0;
+Attrib block_attrib = {0};
+Attrib line_attrib = {0};
+Attrib text_attrib = {0};
+Attrib sky_attrib = {0};
+FPS fps = {0};
+int key_last = 0;
+int mouse_x_last = 0;
+int mouse_y_last = 0;
 
-    // WINDOW INITIALIZATION //
-    if (!glfwInit()) {
-        return -1;
-    }
-    create_window();
-    if (!g->window) {
-        glfwTerminate();
-        return -1;
-    }
-
-    glfwMakeContextCurrent(g->window);
-    glfwSwapInterval(VSYNC);
-    glfwSetInputMode(g->window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
-    glfwSetKeyCallback(g->window, on_key);
-    glfwSetCharCallback(g->window, on_char);
-    glfwSetMouseButtonCallback(g->window, on_mouse_button);
-    glfwSetScrollCallback(g->window, on_scroll);
-
+void init() {
     // setup sokol_gfx
+    sapp_show_mouse(false);
     sg_setup(&(sg_desc){
-        .environment = glfw_environment(),
+        .environment = sglue_environment(),
         .logger.func = slog_func,
         .buffer_pool_size = 1024,
     });
@@ -2685,10 +2655,6 @@ int main(int __argc, char **__argv)
     load_png_texture_memory_sokol("textures/texture.png", &sokol_state.texture_png.tex, &sokol_state.texture_png.smp, texture_png, sizeof(texture_png));
 
     // LOAD SHADERS //
-    Attrib block_attrib = {0};
-    Attrib line_attrib = {0};
-    Attrib text_attrib = {0};
-    Attrib sky_attrib = {0};
     {
         sg_shader shd = sg_make_shader(block_shader_desc(sg_query_backend()));
         sokol_state.block_pip = sg_make_pipeline(&(sg_pipeline_desc){
@@ -2778,6 +2744,286 @@ int main(int __argc, char **__argv)
         text_attrib.pipeline = sokol_state.text_pip;
     }
 
+    // DATABASE INITIALIZATION //
+    if (g->mode == MODE_OFFLINE || USE_CACHE) {
+        db_enable();
+        if (db_init(g->db_path)) {
+            assert(false);
+        }
+        if (g->mode == MODE_ONLINE) {
+            // TODO: support proper caching of signs (handle deletions)
+            db_delete_all_signs();
+        }
+    }
+
+    // CLIENT INITIALIZATION //
+    if (g->mode == MODE_ONLINE) {
+        client_enable();
+        client_connect(g->server_addr, g->server_port);
+        client_start();
+        client_version(1);
+        login();
+    }
+
+    // LOCAL VARIABLES //
+    reset_model();
+    fps = (FPS){0, 0, 0};
+    last_commit = stm_sec(stm_now());
+    last_update = stm_sec(stm_now());
+    sky_buffer = gen_sky_buffer();
+
+    Player *me = g->players;
+    s = &g->players->state;
+    me->id = 0;
+    me->name[0] = '\0';
+    me->buffer = 0;
+    g->player_count = 1;
+
+    // LOAD STATE FROM DATABASE //
+    int loaded = db_load_state(&s->x, &s->y, &s->z, &s->rx, &s->ry);
+    force_chunks(me);
+    if (!loaded) {
+        s->y = highest_block(s->x, s->z) + 2;
+    }
+
+    // BEGIN MAIN LOOP //
+    previous = stm_sec(stm_now());
+}
+
+void frame() {
+    // WINDOW SIZE AND SCALE //
+    g->scale = round(sapp_dpi_scale());
+    g->width = sapp_width();
+    g->height = sapp_height();
+
+    // FRAME RATE //
+    if (g->time_changed) {
+        g->time_changed = 0;
+        last_commit = stm_sec(stm_now());
+        last_update = stm_sec(stm_now());
+        memset(&fps, 0, sizeof(fps));
+    }
+    update_fps(&fps);
+    double now = stm_sec(stm_now());
+    double dt = now - previous;
+    dt = MIN(dt, 0.2);
+    dt = MAX(dt, 0.0);
+    previous = now;
+
+    // HANDLE MOUSE INPUT //
+    handle_mouse_input(mouse_x_last, mouse_y_last);
+
+    // HANDLE MOVEMENT //
+    handle_movement(dt, key_last);
+
+    // HANDLE DATA FROM SERVER //
+    char *buffer = client_recv();
+    if (buffer) {
+        parse_buffer(buffer);
+        free(buffer);
+    }
+
+    // FLUSH DATABASE //
+    if (now - last_commit > COMMIT_INTERVAL) {
+        last_commit = now;
+        db_commit();
+    }
+
+    // SEND POSITION TO SERVER //
+    if (now - last_update > 0.1) {
+        last_update = now;
+        client_position(s->x, s->y, s->z, s->rx, s->ry);
+    }
+
+    // PREPARE TO RENDER //
+    g->observe1 = g->observe1 % g->player_count;
+    g->observe2 = g->observe2 % g->player_count;
+    delete_chunks();
+    Player *me = g->players;
+    del_buffer(me->buffer);
+    me->buffer = gen_player_buffer(s->x, s->y, s->z, s->rx, s->ry);
+    for (int i = 1; i < g->player_count; i++) {
+        interpolate_player(g->players + i);
+    }
+    Player *player = g->players + g->observe1;
+
+    // RENDER 3-D SCENE //
+    sg_begin_pass(&(sg_pass){
+        .action = {
+            .colors[0] = {
+                .load_action = SG_LOADACTION_CLEAR,
+                .store_action = SG_STOREACTION_STORE,
+                .clear_value = {0.1, 0.2, 0.3, 1},
+            },
+            .depth = {
+                .load_action = SG_LOADACTION_CLEAR,
+            }
+        },
+        .swapchain = sglue_swapchain(),
+        .label = "sky pass" });
+    {
+        render_sky(&sky_attrib, player, sky_buffer);
+    }
+    sg_end_pass();
+    int face_count = 0;
+    sg_begin_pass(&(sg_pass){ .action = {
+            .colors[0] = {
+                .load_action = SG_LOADACTION_LOAD,
+                .store_action = SG_STOREACTION_STORE,
+            },
+            .depth = {
+                .load_action = SG_LOADACTION_CLEAR,
+                .clear_value = 1.0f,
+            }
+        },
+        .swapchain = sglue_swapchain(),
+        .label = "main pass" });
+    {
+        face_count = render_chunks(&block_attrib, player);
+        render_signs(&text_attrib, player);
+        render_sign(&text_attrib, player);
+        render_players(&block_attrib, player);
+        if (SHOW_WIREFRAME) {
+            render_wireframe(&line_attrib, player);
+        }
+    }
+    sg_end_pass();
+
+    // RENDER HUD //
+    sg_begin_pass(&(sg_pass){ .action = {
+            .colors[0] = {
+                .load_action = SG_LOADACTION_LOAD,
+                .store_action = SG_STOREACTION_STORE,
+            },
+            .depth = {
+                .load_action = SG_LOADACTION_CLEAR,
+                .clear_value = 1.0f,
+            }
+        },
+        .swapchain = sglue_swapchain(),
+        .label = "HUD pass" });
+    {
+        if (SHOW_CROSSHAIRS) {
+            render_crosshairs(&line_attrib);
+        }
+        if (SHOW_ITEM) {
+            render_item(&block_attrib);
+        }
+        // RENDER TEXT //
+        // if (false)
+        {
+            char text_buffer[1024];
+            float ts = 12 * g->scale;
+            float tx = ts / 2;
+            float ty = g->height - ts;
+            if (SHOW_INFO_TEXT) {
+                int hour = time_of_day() * 24;
+                char am_pm = hour < 12 ? 'a' : 'p';
+                hour = hour % 12;
+                hour = hour ? hour : 12;
+                snprintf(
+                    text_buffer, 1024,
+                    "(%d, %d) (%.2f, %.2f, %.2f) [%d, %d, %d] %d%cm %dfps",
+                    chunked(s->x), chunked(s->z), s->x, s->y, s->z,
+                    g->player_count, g->chunk_count,
+                    face_count * 2, hour, am_pm, fps.fps);
+                render_text(&text_attrib, ALIGN_LEFT, tx, ty, ts, text_buffer);
+                ty -= ts * 2;
+            }
+            if (SHOW_CHAT_TEXT) {
+                for (int i = 0; i < MAX_MESSAGES; i++) {
+                    int index = (g->message_index + i) % MAX_MESSAGES;
+                    if (strlen(g->messages[index])) {
+                        render_text(&text_attrib, ALIGN_LEFT, tx, ty, ts,
+                            g->messages[index]);
+                        ty -= ts * 2;
+                    }
+                }
+            }
+            if (g->typing) {
+                snprintf(text_buffer, 1024, "> %s", g->typing_buffer);
+                render_text(&text_attrib, ALIGN_LEFT, tx, ty, ts, text_buffer);
+                ty -= ts * 2;
+            }
+            if (SHOW_PLAYER_NAMES) {
+                if (player != me) {
+                    render_text(&text_attrib, ALIGN_CENTER,
+                        g->width / 2, ts, ts, player->name);
+                }
+                Player *other = player_crosshair(player);
+                if (other) {
+                    render_text(&text_attrib, ALIGN_CENTER,
+                        g->width / 2, g->height / 2 - ts - 24, ts,
+                        other->name);
+                }
+            }
+        }
+    }
+    sg_end_pass();
+
+    // SWAP AND POLL //
+    sg_commit();
+}
+
+void cleanup() {
+    // SHUTDOWN //
+    db_save_state(s->x, s->y, s->z, s->rx, s->ry);
+    db_close();
+    db_disable();
+    client_stop();
+    client_disable();
+    // del_buffer(sky_buffer);
+    delete_all_chunks();
+    delete_all_players();
+    // cleanup
+    sg_shutdown();
+}
+
+void input(const sapp_event* event) {
+    switch (event->type) {
+        case SAPP_EVENTTYPE_MOUSE_MOVE: {
+            // HANDLE MOUSE INPUT //
+            mouse_x_last = event->mouse_x;
+            mouse_y_last = event->mouse_y;
+            break;
+        }
+        case SAPP_EVENTTYPE_MOUSE_DOWN: {
+            on_mouse_button(event->mouse_button, SAPP_EVENTTYPE_MOUSE_DOWN);
+            break;
+        }
+        case SAPP_EVENTTYPE_MOUSE_UP: {
+            on_mouse_button(event->mouse_button, SAPP_EVENTTYPE_MOUSE_UP);
+            break;
+        }
+        case SAPP_EVENTTYPE_KEY_DOWN: {
+            on_key(event->key_code, SAPP_EVENTTYPE_KEY_DOWN, 0);
+            // HANDLE MOVEMENT //
+            key_last = event->key_code;
+            break;
+        }
+        case SAPP_EVENTTYPE_KEY_UP: {
+            on_key(event->key_code, SAPP_EVENTTYPE_KEY_UP, 0);
+            key_last = 0;
+            break;
+        }
+        default: break;
+    }
+
+
+
+}
+
+#if WIN32
+int APIENTRY WinMain(HINSTANCE hInst, HINSTANCE hInstPrev, PSTR cmdline, int cmdshow)
+#else
+int main(int __argc, char **__argv)
+#endif
+{
+    // INITIALIZATION //
+    curl_global_init(CURL_GLOBAL_DEFAULT);
+    srand(time(NULL));
+    rand();
+
     // CHECK COMMAND LINE ARGUMENTS //
     if (__argc == 2 || __argc == 3) {
         g->mode = MODE_ONLINE;
@@ -2806,286 +3052,48 @@ int main(int __argc, char **__argv)
         thrd_create(&worker->thrd, worker_run, worker);
     }
 
-    // OUTER LOOP //
-    int running = 1;
-    while (running) {
-        // DATABASE INITIALIZATION //
-        if (g->mode == MODE_OFFLINE || USE_CACHE) {
-            db_enable();
-            if (db_init(g->db_path)) {
-                return -1;
-            }
-            if (g->mode == MODE_ONLINE) {
-                // TODO: support proper caching of signs (handle deletions)
-                db_delete_all_signs();
-            }
-        }
+    // sokol main
+    sapp_desc desc = {0};
+    desc.init_cb = init;
+    desc.frame_cb = frame;
+    desc.cleanup_cb = cleanup,
+    desc.event_cb = input,
+    desc.width  = WINDOW_WIDTH,
+    desc.height = WINDOW_HEIGHT,
+    desc.window_title = "Craft",
+    desc.logger.func = slog_func;
+    sapp_run(&desc);
 
-        // CLIENT INITIALIZATION //
-        if (g->mode == MODE_ONLINE) {
-            client_enable();
-            client_connect(g->server_addr, g->server_port);
-            client_start();
-            client_version(1);
-            login();
-        }
 
-        // LOCAL VARIABLES //
-        reset_model();
-        FPS fps = {0, 0, 0};
-        double last_commit = stm_sec(stm_now());
-        double last_update = stm_sec(stm_now());
-        uint32_t sky_buffer = gen_sky_buffer();
 
-        Player *me = g->players;
-        State *s = &g->players->state;
-        me->id = 0;
-        me->name[0] = '\0';
-        me->buffer = 0;
-        g->player_count = 1;
 
-        // LOAD STATE FROM DATABASE //
-        int loaded = db_load_state(&s->x, &s->y, &s->z, &s->rx, &s->ry);
-        force_chunks(me);
-        if (!loaded) {
-            s->y = highest_block(s->x, s->z) + 2;
-        }
 
-        // BEGIN MAIN LOOP //
-        double previous = stm_sec(stm_now());
-        while (1) {
-            // WINDOW SIZE AND SCALE //
-            g->scale = get_scale_factor();
-            glfwGetFramebufferSize(g->window, &g->width, &g->height);
+    // // WINDOW INITIALIZATION //
+    // if (!glfwInit()) {
+    //     return -1;
+    // }
+    // create_window();
+    // if (!g->window) {
+    //     glfwTerminate();
+    //     return -1;
+    // }
+    //
+    // glfwMakeContextCurrent(g->window);
+    // glfwSwapInterval(VSYNC);
+    // glfwSetInputMode(g->window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
+    // glfwSetKeyCallback(g->window, on_key);
+    // glfwSetCharCallback(g->window, on_char);
+    // glfwSetMouseButtonCallback(g->window, on_mouse_button);
+    // glfwSetScrollCallback(g->window, on_scroll);
 
-            // FRAME RATE //
-            if (g->time_changed) {
-                g->time_changed = 0;
-                last_commit = stm_sec(stm_now());
-                last_update = stm_sec(stm_now());
-                memset(&fps, 0, sizeof(fps));
-            }
-            update_fps(&fps);
-            double now = stm_sec(stm_now());
-            double dt = now - previous;
-            dt = MIN(dt, 0.2);
-            dt = MAX(dt, 0.0);
-            previous = now;
 
-            // HANDLE MOUSE INPUT //
-            handle_mouse_input();
 
-            // HANDLE MOVEMENT //
-            handle_movement(dt);
 
-            // HANDLE DATA FROM SERVER //
-            char *buffer = client_recv();
-            if (buffer) {
-                parse_buffer(buffer);
-                free(buffer);
-            }
 
-            // FLUSH DATABASE //
-            if (now - last_commit > COMMIT_INTERVAL) {
-                last_commit = now;
-                db_commit();
-            }
 
-            // SEND POSITION TO SERVER //
-            if (now - last_update > 0.1) {
-                last_update = now;
-                client_position(s->x, s->y, s->z, s->rx, s->ry);
-            }
 
-            // PREPARE TO RENDER //
-            g->observe1 = g->observe1 % g->player_count;
-            g->observe2 = g->observe2 % g->player_count;
-            delete_chunks();
-            del_buffer(me->buffer);
-            me->buffer = gen_player_buffer(s->x, s->y, s->z, s->rx, s->ry);
-            for (int i = 1; i < g->player_count; i++) {
-                interpolate_player(g->players + i);
-            }
-            Player *player = g->players + g->observe1;
-
-            // RENDER 3-D SCENE //
-            sg_begin_pass(&(sg_pass){
-                .action = {
-                    .colors[0] = {
-                        .load_action = SG_LOADACTION_CLEAR,
-                        .store_action = SG_STOREACTION_STORE,
-                        .clear_value = {0.1, 0.2, 0.3, 1},
-                    },
-                    .depth = {
-                        .load_action = SG_LOADACTION_CLEAR,
-                    }
-                },
-                .swapchain = glfw_swapchain(),
-                .label = "sky pass" });
-            {
-                render_sky(&sky_attrib, player, sky_buffer);
-            }
-            sg_end_pass();
-            int face_count = 0;
-            sg_begin_pass(&(sg_pass){ .action = {
-                    .colors[0] = {
-                        .load_action = SG_LOADACTION_LOAD,
-                        .store_action = SG_STOREACTION_STORE,
-                    },
-                    .depth = {
-                        .load_action = SG_LOADACTION_CLEAR,
-                        .clear_value = 1.0f,
-                    }
-                },
-                .swapchain = glfw_swapchain(),
-                .label = "main pass" });
-            {
-                face_count = render_chunks(&block_attrib, player);
-                render_signs(&text_attrib, player);
-                render_sign(&text_attrib, player);
-                render_players(&block_attrib, player);
-                if (SHOW_WIREFRAME) {
-                    render_wireframe(&line_attrib, player);
-                }
-            }
-            sg_end_pass();
-
-            // RENDER HUD //
-            sg_begin_pass(&(sg_pass){ .action = {
-                    .colors[0] = {
-                        .load_action = SG_LOADACTION_LOAD,
-                        .store_action = SG_STOREACTION_STORE,
-                    },
-                    .depth = {
-                        .load_action = SG_LOADACTION_CLEAR,
-                        .clear_value = 1.0f,
-                    }
-                },
-                .swapchain = glfw_swapchain(),
-                .label = "HUD pass" });
-            {
-                if (SHOW_CROSSHAIRS) {
-                    render_crosshairs(&line_attrib);
-                }
-                if (SHOW_ITEM) {
-                    render_item(&block_attrib);
-                }
-                // RENDER TEXT //
-                // if (false)
-                {
-                    char text_buffer[1024];
-                    float ts = 12 * g->scale;
-                    float tx = ts / 2;
-                    float ty = g->height - ts;
-                    if (SHOW_INFO_TEXT) {
-                        int hour = time_of_day() * 24;
-                        char am_pm = hour < 12 ? 'a' : 'p';
-                        hour = hour % 12;
-                        hour = hour ? hour : 12;
-                        snprintf(
-                            text_buffer, 1024,
-                            "(%d, %d) (%.2f, %.2f, %.2f) [%d, %d, %d] %d%cm %dfps",
-                            chunked(s->x), chunked(s->z), s->x, s->y, s->z,
-                            g->player_count, g->chunk_count,
-                            face_count * 2, hour, am_pm, fps.fps);
-                        render_text(&text_attrib, ALIGN_LEFT, tx, ty, ts, text_buffer);
-                        ty -= ts * 2;
-                    }
-                    if (SHOW_CHAT_TEXT) {
-                        for (int i = 0; i < MAX_MESSAGES; i++) {
-                            int index = (g->message_index + i) % MAX_MESSAGES;
-                            if (strlen(g->messages[index])) {
-                                render_text(&text_attrib, ALIGN_LEFT, tx, ty, ts,
-                                    g->messages[index]);
-                                ty -= ts * 2;
-                            }
-                        }
-                    }
-                    if (g->typing) {
-                        snprintf(text_buffer, 1024, "> %s", g->typing_buffer);
-                        render_text(&text_attrib, ALIGN_LEFT, tx, ty, ts, text_buffer);
-                        ty -= ts * 2;
-                    }
-                    if (SHOW_PLAYER_NAMES) {
-                        if (player != me) {
-                            render_text(&text_attrib, ALIGN_CENTER,
-                                g->width / 2, ts, ts, player->name);
-                        }
-                        Player *other = player_crosshair(player);
-                        if (other) {
-                            render_text(&text_attrib, ALIGN_CENTER,
-                                g->width / 2, g->height / 2 - ts - 24, ts,
-                                other->name);
-                        }
-                    }
-                }
-            }
-            sg_end_pass();
-
-            // RENDER PICTURE IN PICTURE //
-            if (g->observe2) {
-                // pip not implement
-                // player = g->players + g->observe2;
-                //
-                // int pw = 256 * g->scale;
-                // int ph = 256 * g->scale;
-                // int offset = 32 * g->scale;
-                // int pad = 3 * g->scale;
-                // int sw = pw + pad * 2;
-                // int sh = ph + pad * 2;
-                //
-                // glEnable(GL_SCISSOR_TEST);
-                // glScissor(g->width - sw - offset + pad, offset - pad, sw, sh);
-                // glClear(GL_COLOR_BUFFER_BIT);
-                // glDisable(GL_SCISSOR_TEST);
-                // glClear(GL_DEPTH_BUFFER_BIT);
-                // glViewport(g->width - pw - offset, offset, pw, ph);
-                //
-                // g->width = pw;
-                // g->height = ph;
-                // g->ortho = 0;
-                // g->fov = 65;
-                //
-                // render_sky(&sky_attrib, player, sky_buffer);
-                // glClear(GL_DEPTH_BUFFER_BIT);
-                // render_chunks(&block_attrib, player);
-                // render_signs(&text_attrib, player);
-                // render_players(&block_attrib, player);
-                // glClear(GL_DEPTH_BUFFER_BIT);
-                // if (SHOW_PLAYER_NAMES) {
-                //     render_text(&text_attrib, ALIGN_CENTER,
-                //         pw / 2, ts, ts, player->name);
-                // }
-            }
-
-            // SWAP AND POLL //
-            sg_commit();
-            glfwSwapBuffers(g->window);
-            glfwPollEvents();
-            if (glfwWindowShouldClose(g->window)) {
-                running = 0;
-                break;
-            }
-            if (g->mode_changed) {
-                g->mode_changed = 0;
-                break;
-            }
-        }
-
-        // SHUTDOWN //
-        db_save_state(s->x, s->y, s->z, s->rx, s->ry);
-        db_close();
-        db_disable();
-        client_stop();
-        client_disable();
-        del_buffer(sky_buffer);
-        delete_all_chunks();
-        delete_all_players();
-    }
 
     // cleanup
-    sg_shutdown();
-    glfwTerminate();
     curl_global_cleanup();
     return 0;
 }

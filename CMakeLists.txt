@@ -24,19 +24,6 @@ set(CURL_USE_MBEDTLS OFF CACHE INTERNAL "" FORCE)
 set(BUILD_EXAMPLES OFF CACHE INTERNAL "" FORCE)
 FetchContent_MakeAvailable(curl)
 
-FetchContent_Declare(GLFW3
-    GIT_REPOSITORY https://github.com/glfw/glfw
-    GIT_TAG 3.4
-    GIT_PROGRESS TRUE
-    GIT_SHALLOW TRUE
-)
-set(GLFW_BUILD_EXAMPLES OFF CACHE INTERNAL "glfw examples")
-set(GLFW_BUILD_TESTS OFF CACHE INTERNAL "glfw tests")
-set(GLFW_BUILD_DOCS OFF CACHE INTERNAL "glfw docs")
-set(GLFW_INSTALL OFF CACHE INTERNAL "glfw install")
-set(GLFW_VULKAN_STATIC OFF CACHE INTERNAL "glfw vulkan")
-FetchContent_MakeAvailable(GLFW3)
-
 FILE(GLOB SOURCE_FILES src/*.c)
 set(MYCRAFT_SRC ${SOURCE_FILES}
         deps/lodepng/lodepng.c
@@ -58,13 +45,13 @@ target_include_directories(mycraft PRIVATE deps/sokol)
 target_include_directories(mycraft PRIVATE deps/HandmadeMath)
 
 if(APPLE)
-    target_link_libraries(mycraft PRIVATE glfw CURL::libcurl)
+    target_link_libraries(mycraft PRIVATE CURL::libcurl)
 endif()
 
 if(UNIX)
-    target_link_libraries(mycraft PRIVATE dl glfw CURL::libcurl)
+    target_link_libraries(mycraft PRIVATE dl CURL::libcurl)
 endif()
 
 if(WIN32)
-    target_link_libraries(mycraft PRIVATE ws2_32.lib glfw CURL::libcurl)
+    target_link_libraries(mycraft PRIVATE ws2_32.lib CURL::libcurl)
 endif()
