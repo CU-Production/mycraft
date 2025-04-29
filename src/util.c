@@ -1,4 +1,3 @@
-#include <GLFW/glfw3.h>
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -6,6 +5,7 @@
 #include "lodepng.h"
 #include "matrix.h"
 #include "sokol_gfx.h"
+#include "sokol_time.h"
 #include "util.h"
 
 int rand_int(int n) {
@@ -20,7 +20,7 @@ double rand_double() {
 
 void update_fps(FPS *fps) {
     fps->frames++;
-    double now = glfwGetTime();
+    double now = stm_sec(stm_now());
     double elapsed = now - fps->since;
     if (elapsed >= 1) {
         fps->fps = round(fps->frames / elapsed);

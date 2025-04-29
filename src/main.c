@@ -20,7 +20,11 @@
 #include "world.h"
 #include "stdint.h"
 #define SOKOL_GLCORE
+#define SOKOL_NO_ENTRY
+// #include "sokol_app.h"
 #include "sokol_gfx.h"
+#include "sokol_glue.h"
+#include "sokol_time.h"
 #include "sokol_log.h"
 #include "glfw_glue.h"
 
@@ -203,7 +207,7 @@ float time_of_day() {
         return 0.5;
     }
     float t;
-    t = glfwGetTime();
+    t = stm_sec(stm_now()) + 200;
     t = t / g->day_length;
     t = t - (int)t;
     return t;
@@ -447,7 +451,7 @@ void update_player(Player *player,
         State *s2 = &player->state2;
         memcpy(s1, s2, sizeof(State));
         s2->x = x; s2->y = y; s2->z = z; s2->rx = rx; s2->ry = ry;
-        s2->t = glfwGetTime();
+        s2->t = stm_sec(stm_now());
         if (s2->rx - s1->rx > PI) {
             s1->rx += 2 * PI;
         }
@@ -467,7 +471,7 @@ void interpolate_player(Player *player) {
     State *s1 = &player->state1;
     State *s2 = &player->state2;
     float t1 = s2->t - s1->t;
-    float t2 = glfwGetTime() - s2->t;
+    float t2 = stm_sec(stm_now()) - s2->t;
     t1 = MIN(t1, 1);
     t1 = MAX(t1, 0.1);
     float p = MIN(t2 / t1, 1);
@@ -2672,6 +2676,7 @@ int main(int __argc, char **__argv)
         .logger.func = slog_func,
         .buffer_pool_size = 1024,
     });
+    stm_setup();
 
     // LOAD TEXTURES //
     load_png_texture_memory_sokol("textures/font.png", &sokol_state.font_png.tex, &sokol_state.font_png.smp, font_png, sizeof(font_png));
@@ -2828,8 +2833,8 @@ int main(int __argc, char **__argv)
         // LOCAL VARIABLES //
         reset_model();
         FPS fps = {0, 0, 0};
-        double last_commit = glfwGetTime();
-        double last_update = glfwGetTime();
+        double last_commit = stm_sec(stm_now());
+        double last_update = stm_sec(stm_now());
         uint32_t sky_buffer = gen_sky_buffer();
 
         Player *me = g->players;
@@ -2847,23 +2852,21 @@ int main(int __argc, char **__argv)
         }
 
         // BEGIN MAIN LOOP //
-        double previous = glfwGetTime();
+        double previous = stm_sec(stm_now());
         while (1) {
             // WINDOW SIZE AND SCALE //
             g->scale = get_scale_factor();
             glfwGetFramebufferSize(g->window, &g->width, &g->height);
-            // glViewport(0, 0, g->width, g->height);
-            // sg_begin_pass(&(sg_pass){ .swapchain = glfw_swapchain() });
 
             // FRAME RATE //
             if (g->time_changed) {
                 g->time_changed = 0;
-                last_commit = glfwGetTime();
-                last_update = glfwGetTime();
+                last_commit = stm_sec(stm_now());
+                last_update = stm_sec(stm_now());
                 memset(&fps, 0, sizeof(fps));
             }
             update_fps(&fps);
-            double now = glfwGetTime();
+            double now = stm_sec(stm_now());
             double dt = now - previous;
             dt = MIN(dt, 0.2);
             dt = MAX(dt, 0.0);
