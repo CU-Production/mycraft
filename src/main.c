@@ -20,8 +20,6 @@
 #include "world.h"
 #include "stdint.h"
 #define SOKOL_GLCORE
-#define SOKOL_DEBUG
-#define SOKOL_IMPL
 #include "sokol_gfx.h"
 #include "sokol_log.h"
 #include "glfw_glue.h"
@@ -31,6 +29,10 @@
 #include "../shaders/line.glsl.h"
 #include "../shaders/sky.glsl.h"
 #include "../shaders/text.glsl.h"
+#include "../textures/font.png.h"
+#include "../textures/sign.png.h"
+#include "../textures/sky.png.h"
+#include "../textures/texture.png.h"
 
 #define MAX_CHUNKS 8192
 #define MAX_PLAYERS 16
@@ -2672,10 +2674,10 @@ int main(int __argc, char **__argv)
     });
 
     // LOAD TEXTURES //
-    load_png_texture_sokol("textures/font.png", &sokol_state.font_png.tex, &sokol_state.font_png.smp);
-    load_png_texture_sokol("textures/sign.png", &sokol_state.sign_png.tex, &sokol_state.sign_png.smp);
-    load_png_texture_sokol("textures/sky.png", &sokol_state.sky_png.tex, &sokol_state.sky_png.smp);
-    load_png_texture_sokol("textures/texture.png", &sokol_state.texture_png.tex, &sokol_state.texture_png.smp);
+    load_png_texture_memory_sokol("textures/font.png", &sokol_state.font_png.tex, &sokol_state.font_png.smp, font_png, sizeof(font_png));
+    load_png_texture_memory_sokol("textures/sign.png", &sokol_state.sign_png.tex, &sokol_state.sign_png.smp, sign_png, sizeof(sign_png));
+    load_png_texture_memory_sokol("textures/sky.png", &sokol_state.sky_png.tex, &sokol_state.sky_png.smp, sky_png, sizeof(sky_png));
+    load_png_texture_memory_sokol("textures/texture.png", &sokol_state.texture_png.tex, &sokol_state.texture_png.smp, texture_png, sizeof(texture_png));
 
     // LOAD SHADERS //
     Attrib block_attrib = {0};

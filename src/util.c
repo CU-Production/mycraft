@@ -5,8 +5,6 @@
 #include <errno.h>
 #include "lodepng.h"
 #include "matrix.h"
-#define SOKOL_DEBUG
-#define SOKOL_GLCORE
 #include "sokol_gfx.h"
 #include "util.h"
 
@@ -92,13 +90,13 @@ void flip_image_vertical(
     free(new_data);
 }
 
-void load_png_texture_sokol(const char *file_name, sg_image *image, sg_sampler *sampler) {
+void load_png_texture_memory_sokol(const char *file_name, sg_image *image, sg_sampler *sampler, const unsigned char* in, size_t insize) {
     unsigned int error;
     unsigned char *data;
     unsigned int width, height;
-    error = lodepng_decode32_file(&data, &width, &height, file_name);
+    error = lodepng_decode32(&data, &width, &height, in, insize);
     if (error) {
-        fprintf(stderr, "load_png_texture %s failed, error %u: %s\n", file_name, error, lodepng_error_text(error));
+        fprintf(stderr, "load_png_texture_from_memory %s failed, error %u: %s\n", file_name, error, lodepng_error_text(error));
         exit(1);
     }
     flip_image_vertical(data, width, height);

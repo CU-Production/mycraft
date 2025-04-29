@@ -1,8 +1,6 @@
 #ifndef _util_h_
 #define _util_h_
 
-#define SOKOL_DEBUG
-#define SOKOL_GLCORE
 #include "sokol_gfx.h"
 #include "config.h"
 #include "HandmadeMath.h"
@@ -36,7 +34,7 @@ void del_buffer(uint32_t buffer);
 float *malloc_faces(int components, int faces);
 uint32_t gen_faces(int components, int faces, float *data);
 void flip_image_vertical(unsigned char *data, unsigned int width, unsigned int height);
-void load_png_texture_sokol(const char *file_name, sg_image* image, sg_sampler* sampler);
+void load_png_texture_memory_sokol(const char *file_name, sg_image *image, sg_sampler *sampler, const unsigned char* in, size_t insize);
 char *tokenize(char *str, const char *delim, char **key);
 int char_width(char input);
 int string_width(const char *input);
