@@ -272,8 +272,10 @@ uint32_t gen_crosshair_buffer() {
     int y = g->height / 2;
     int p = 10 * g->scale;
     float data[] = {
-        x, y - p, x, y + p,
-        x - p, y, x + p, y
+        x,     y - p, 0,
+        x,     y + p, 0,
+        x - p, y,     0,
+        x + p, y,     0
     };
     return gen_buffer(sizeof(data), data);
 }
@@ -1806,7 +1808,7 @@ void render_crosshairs(Attrib *attrib) {
     };
     sg_apply_uniforms(UB_line_vs_params, &SG_RANGE(vs_params));
     uint32_t crosshair_buffer = gen_crosshair_buffer();
-    draw_lines(attrib, crosshair_buffer, 2, 4);
+    draw_lines(attrib, crosshair_buffer, 3, 4);
     del_buffer(crosshair_buffer);
 }
 
