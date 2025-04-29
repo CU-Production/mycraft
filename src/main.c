@@ -19,7 +19,11 @@
 #include "util.h"
 #include "world.h"
 #include "stdint.h"
+#if WIN32
+#define SOKOL_D3D11
+#else
 #define SOKOL_GLCORE
+#endif
 #define SOKOL_NO_ENTRY
 #include <assert.h>
 
