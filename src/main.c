@@ -119,22 +119,6 @@ typedef struct {
 } Player;
 
 typedef struct {
-    uint32_t program;
-    sg_pipeline pipeline;
-    uint32_t position;
-    uint32_t normal;
-    uint32_t uv;
-    uint32_t matrix;
-    uint32_t sampler;
-    uint32_t camera;
-    uint32_t timer;
-    uint32_t extra1;
-    uint32_t extra2;
-    uint32_t extra3;
-    uint32_t extra4;
-} Attrib;
-
-typedef struct {
     GLFWwindow *window;
     Worker workers[WORKERS];
     Chunk chunks[MAX_CHUNKS];
@@ -337,7 +321,7 @@ uint32_t gen_text_buffer(float x, float y, float n, char *text) {
     return gen_faces(4, length, data);
 }
 
-void draw_triangles_3d_ao(Attrib *attrib, uint32_t buffer, int count) {
+void draw_triangles_3d_ao(uint32_t buffer, int count) {
     if (buffer == 0) return;
     sg_bindings bind = {
         .vertex_buffers[0].id = buffer,
@@ -350,7 +334,7 @@ void draw_triangles_3d_ao(Attrib *attrib, uint32_t buffer, int count) {
     sg_draw(0, count,1 );
 }
 
-void draw_triangles_3d_text(Attrib *attrib, uint32_t buffer, int count) {
+void draw_triangles_3d_text(uint32_t buffer, int count) {
     if (buffer == 0) return;
     sg_bindings bind = {
         .vertex_buffers[0].id = buffer,
@@ -361,7 +345,7 @@ void draw_triangles_3d_text(Attrib *attrib, uint32_t buffer, int count) {
     sg_draw(0, count,1 );
 }
 
-void draw_triangles_3d(Attrib *attrib, uint32_t buffer, int count) {
+void draw_triangles_3d(uint32_t buffer, int count) {
     if (buffer == 0) return;
     sg_bindings bind = {
         .vertex_buffers[0].id = buffer,
@@ -372,7 +356,7 @@ void draw_triangles_3d(Attrib *attrib, uint32_t buffer, int count) {
     sg_draw(0, count,1 );
 }
 
-void draw_triangles_2d(Attrib *attrib, uint32_t buffer, int count) {
+void draw_triangles_2d(uint32_t buffer, int count) {
     if (buffer == 0) return;
     sg_bindings bind = {
         .vertex_buffers[0].id = buffer,
@@ -383,7 +367,7 @@ void draw_triangles_2d(Attrib *attrib, uint32_t buffer, int count) {
     sg_draw(0, count,1 );
 }
 
-void draw_lines(Attrib *attrib, uint32_t buffer, int components, int count) {
+void draw_lines(uint32_t buffer, int components, int count) {
     if (buffer == 0) return;
     sg_bindings bind = {
         .vertex_buffers[0].id = buffer,
@@ -392,45 +376,36 @@ void draw_lines(Attrib *attrib, uint32_t buffer, int components, int count) {
     sg_draw(0, count,1 );
 }
 
-void draw_chunk(Attrib *attrib, Chunk *chunk) {
-    draw_triangles_3d_ao(attrib, chunk->buffer, chunk->faces * 6);
+void draw_chunk(Chunk *chunk) {
+    draw_triangles_3d_ao(chunk->buffer, chunk->faces * 6);
 }
 
-void draw_item(Attrib *attrib, uint32_t buffer, int count) {
-    draw_triangles_3d_ao(attrib, buffer, count);
+void draw_item(uint32_t buffer, int count) {
+    draw_triangles_3d_ao(buffer, count);
 }
 
-void draw_text(Attrib *attrib, uint32_t buffer, int length) {
-    // glEnable(GL_BLEND);
-    // glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-    draw_triangles_2d(attrib, buffer, length * 6);
-    // glDisable(GL_BLEND);
+void draw_text(uint32_t buffer, int length) {
+    draw_triangles_2d(buffer, length * 6);
 }
 
-void draw_signs(Attrib *attrib, Chunk *chunk) {
-    // glEnable(GL_POLYGON_OFFSET_FILL);
-    // glPolygonOffset(-8, -1024);
-    draw_triangles_3d_text(attrib, chunk->sign_buffer, chunk->sign_faces * 6);
-    // glDisable(GL_POLYGON_OFFSET_FILL);
+void draw_signs(Chunk *chunk) {
+    draw_triangles_3d_text(chunk->sign_buffer, chunk->sign_faces * 6);
 }
 
-void draw_sign(Attrib *attrib, uint32_t buffer, int length) {
-    // glEnable(GL_POLYGON_OFFSET_FILL);
-    // glPolygonOffset(-8, -1024);
-    draw_triangles_3d_text(attrib, buffer, length * 6);
-    // glDisable(GL_POLYGON_OFFSET_FILL);
+void draw_sign(uint32_t buffer, int length) {
+    draw_triangles_3d_text(buffer, length * 6);
 }
 
-void draw_cube(Attrib *attrib, uint32_t buffer) {
-    draw_item(attrib, buffer, 36);
+void draw_cube(uint32_t buffer) {
+    draw_item(buffer, 36);
 }
 
-void draw_plant(Attrib *attrib, uint32_t buffer) {
-    draw_item(attrib, buffer, 24);
+void draw_plant(uint32_t buffer) {
+    draw_item(buffer, 24);
 }
 
-void draw_player(Attrib *attrib, Player *player) {
-    draw_cube(attrib, player->buffer);
+void draw_player(Player *player) {
+    draw_cube(player->buffer);
 }
 
 Player *find_player(int id) {
@@ -1631,7 +1606,7 @@ void builder_block(int x, int y, int z, int w) {
     }
 }
 
-int render_chunks(Attrib *attrib, Player *player) {
+int render_chunks(Player *player) {
     int result = 0;
     State *s = &player->state;
     ensure_chunks(player);
@@ -1644,7 +1619,7 @@ int render_chunks(Attrib *attrib, Player *player) {
         s->x, s->y, s->z, s->rx, s->ry, g->fov, g->ortho, g->render_radius);
     float planes[6][4];
     frustum_planes(planes, g->render_radius, matrix);
-    sg_apply_pipeline(attrib->pipeline);
+    sg_apply_pipeline(sokol_state.block_pip);
     block_vs_params_t vs_params = {
         .matrix = float16_to_mat4(matrix),
         .camera = HMM_V3(s->x, s->y, s->z),
@@ -1668,13 +1643,13 @@ int render_chunks(Attrib *attrib, Player *player) {
         {
             continue;
         }
-        draw_chunk(attrib, chunk);
+        draw_chunk(chunk);
         result += chunk->faces;
     }
     return result;
 }
 
-void render_signs(Attrib *attrib, Player *player) {
+void render_signs(Player *player) {
     State *s = &player->state;
     int p = chunked(s->x);
     int q = chunked(s->z);
@@ -1684,7 +1659,7 @@ void render_signs(Attrib *attrib, Player *player) {
         s->x, s->y, s->z, s->rx, s->ry, g->fov, g->ortho, g->render_radius);
     float planes[6][4];
     frustum_planes(planes, g->render_radius, matrix);
-    sg_apply_pipeline(attrib->pipeline);
+    sg_apply_pipeline(sokol_state.text_pip);
     text_vs_params_t vs_params = {
         .matrix = float16_to_mat4(matrix),
     };
@@ -1703,11 +1678,11 @@ void render_signs(Attrib *attrib, Player *player) {
         {
             continue;
         }
-        draw_signs(attrib, chunk);
+        draw_signs(chunk);
     }
 }
 
-void render_sign(Attrib *attrib, Player *player) {
+void render_sign(Player *player) {
     if (!g->typing || g->typing_buffer[0] != CRAFT_KEY_SIGN) {
         return;
     }
@@ -1720,7 +1695,7 @@ void render_sign(Attrib *attrib, Player *player) {
     set_matrix_3d(
         matrix, g->width, g->height,
         s->x, s->y, s->z, s->rx, s->ry, g->fov, g->ortho, g->render_radius);
-    sg_apply_pipeline(attrib->pipeline);
+    sg_apply_pipeline(sokol_state.text_pip);
     text_vs_params_t vs_params = {
         .matrix = float16_to_mat4(matrix),
     };
@@ -1735,17 +1710,17 @@ void render_sign(Attrib *attrib, Player *player) {
     float *data = malloc_faces(5, strlen(text));
     int length = _gen_sign_buffer(data, x, y, z, face, text);
     uint32_t buffer = gen_faces(5, length, data);
-    draw_sign(attrib, buffer, length);
+    draw_sign(buffer, length);
     del_buffer(buffer);
 }
 
-void render_players(Attrib *attrib, Player *player) {
+void render_players(Player *player) {
     State *s = &player->state;
     float matrix[16];
     set_matrix_3d(
         matrix, g->width, g->height,
         s->x, s->y, s->z, s->rx, s->ry, g->fov, g->ortho, g->render_radius);
-    sg_apply_pipeline(attrib->pipeline);
+    sg_apply_pipeline(sokol_state.block_pip);
     block_vs_params_t vs_params = {
         .matrix = float16_to_mat4(matrix),
         .camera = HMM_V3(s->x, s->y, s->z),
@@ -1762,18 +1737,18 @@ void render_players(Attrib *attrib, Player *player) {
     for (int i = 0; i < g->player_count; i++) {
         Player *other = g->players + i;
         if (other != player) {
-            draw_player(attrib, other);
+            draw_player(other);
         }
     }
 }
 
-void render_sky(Attrib *attrib, Player *player, uint32_t buffer) {
+void render_sky(Player *player, uint32_t buffer) {
     State *s = &player->state;
     float matrix[16];
     set_matrix_3d(
         matrix, g->width, g->height,
         0, 0, 0, s->rx, s->ry, g->fov, 0, g->render_radius);
-    sg_apply_pipeline(attrib->pipeline);
+    sg_apply_pipeline(sokol_state.sky_pip);
     sky_vs_params_t vs_params = {
         .matrix = float16_to_mat4(matrix),
     };
@@ -1782,10 +1757,10 @@ void render_sky(Attrib *attrib, Player *player, uint32_t buffer) {
     };
     sg_apply_uniforms(UB_sky_vs_params, &SG_RANGE(vs_params));
     sg_apply_uniforms(UB_sky_ps_params, &SG_RANGE(ps_params));
-    draw_triangles_3d(attrib, buffer, 512 * 3);
+    draw_triangles_3d(buffer, 512 * 3);
 }
 
-void render_wireframe(Attrib *attrib, Player *player) {
+void render_wireframe(Player *player) {
     State *s = &player->state;
     float matrix[16];
     set_matrix_3d(
@@ -1794,34 +1769,34 @@ void render_wireframe(Attrib *attrib, Player *player) {
     int hx, hy, hz;
     int hw = hit_test(0, s->x, s->y, s->z, s->rx, s->ry, &hx, &hy, &hz);
     if (is_obstacle(hw)) {
-        sg_apply_pipeline(attrib->pipeline);
+        sg_apply_pipeline(sokol_state.line_pip);
         line_vs_params_t vs_params = {
             .matrix = float16_to_mat4(matrix),
         };
         sg_apply_uniforms(UB_line_vs_params, &SG_RANGE(vs_params));
         uint32_t wireframe_buffer = gen_wireframe_buffer(hx, hy, hz, 0.53);
-        draw_lines(attrib, wireframe_buffer, 3, 24);
+        draw_lines(wireframe_buffer, 3, 24);
         del_buffer(wireframe_buffer);
     }
 }
 
-void render_crosshairs(Attrib *attrib) {
+void render_crosshairs() {
     float matrix[16];
     set_matrix_2d(matrix, g->width, g->height);
-    sg_apply_pipeline(attrib->pipeline);
+    sg_apply_pipeline(sokol_state.line_pip);
     line_vs_params_t vs_params = {
         .matrix = float16_to_mat4(matrix),
     };
     sg_apply_uniforms(UB_line_vs_params, &SG_RANGE(vs_params));
     uint32_t crosshair_buffer = gen_crosshair_buffer();
-    draw_lines(attrib, crosshair_buffer, 3, 4);
+    draw_lines(crosshair_buffer, 3, 4);
     del_buffer(crosshair_buffer);
 }
 
-void render_item(Attrib *attrib) {
+void render_item() {
     float matrix[16];
     set_matrix_item(matrix, g->width, g->height, g->scale);
-    sg_apply_pipeline(attrib->pipeline);
+    sg_apply_pipeline(sokol_state.block_pip);
     block_vs_params_t vs_params = {
         .matrix = float16_to_mat4(matrix),
         .camera = HMM_V3(0, 0, 5),
@@ -1838,22 +1813,21 @@ void render_item(Attrib *attrib) {
     int w = items[g->item_index];
     if (is_plant(w)) {
         uint32_t buffer = gen_plant_buffer(0, 0, 0, 0.5, w);
-        draw_plant(attrib, buffer);
+        draw_plant(buffer);
         del_buffer(buffer);
     }
     else {
         uint32_t buffer = gen_cube_buffer(0, 0, 0, 0.5, w);
-        draw_cube(attrib, buffer);
+        draw_cube(buffer);
         del_buffer(buffer);
     }
 }
 
-void render_text(
-    Attrib *attrib, int justify, float x, float y, float n, char *text)
+void render_text(int justify, float x, float y, float n, char *text)
 {
     float matrix[16];
     set_matrix_2d(matrix, g->width, g->height);
-    sg_apply_pipeline(attrib->pipeline);
+    sg_apply_pipeline(sokol_state.text_pip);
     text_vs_params_t vs_params = {
         .matrix = float16_to_mat4(matrix),
     };
@@ -1865,7 +1839,7 @@ void render_text(
     int length = strlen(text);
     x -= n * justify * (length - 1) / 2;
     uint32_t buffer = gen_text_buffer(x, y, n, text);
-    draw_text(attrib, buffer, length);
+    draw_text(buffer, length);
     del_buffer(buffer);
 }
 
@@ -2685,10 +2659,6 @@ int main(int __argc, char **__argv)
     load_png_texture_memory_sokol("textures/texture.png", &sokol_state.texture_png.tex, &sokol_state.texture_png.smp, texture_png, sizeof(texture_png));
 
     // LOAD SHADERS //
-    Attrib block_attrib = {0};
-    Attrib line_attrib = {0};
-    Attrib text_attrib = {0};
-    Attrib sky_attrib = {0};
     {
         sg_shader shd = sg_make_shader(block_shader_desc(sg_query_backend()));
         sokol_state.block_pip = sg_make_pipeline(&(sg_pipeline_desc){
@@ -2708,7 +2678,6 @@ int main(int __argc, char **__argv)
             },
             .label = "block-pipeline",
         });
-        block_attrib.pipeline = sokol_state.block_pip;
     }
     {
         sg_shader shd = sg_make_shader(line_shader_desc(sg_query_backend()));
@@ -2727,7 +2696,6 @@ int main(int __argc, char **__argv)
             },
             .label = "line-pipeline",
         });
-        line_attrib.pipeline = sokol_state.line_pip;
     }
     {
         sg_shader shd = sg_make_shader(sky_shader_desc(sg_query_backend()));
@@ -2747,7 +2715,6 @@ int main(int __argc, char **__argv)
             },
             .label = "sky-pipeline",
         });
-        sky_attrib.pipeline = sokol_state.sky_pip;
     }
     {
         sg_shader shd = sg_make_shader(text_shader_desc(sg_query_backend()));
@@ -2775,7 +2742,6 @@ int main(int __argc, char **__argv)
             },
             .label = "text-pipeline",
         });
-        text_attrib.pipeline = sokol_state.text_pip;
     }
 
     // CHECK COMMAND LINE ARGUMENTS //
@@ -2923,7 +2889,7 @@ int main(int __argc, char **__argv)
                 .swapchain = glfw_swapchain(),
                 .label = "sky pass" });
             {
-                render_sky(&sky_attrib, player, sky_buffer);
+                render_sky(player, sky_buffer);
             }
             sg_end_pass();
             int face_count = 0;
@@ -2940,12 +2906,12 @@ int main(int __argc, char **__argv)
                 .swapchain = glfw_swapchain(),
                 .label = "main pass" });
             {
-                face_count = render_chunks(&block_attrib, player);
-                render_signs(&text_attrib, player);
-                render_sign(&text_attrib, player);
-                render_players(&block_attrib, player);
+                face_count = render_chunks(player);
+                render_signs(player);
+                render_sign(player);
+                render_players(player);
                 if (SHOW_WIREFRAME) {
-                    render_wireframe(&line_attrib, player);
+                    render_wireframe(player);
                 }
             }
             sg_end_pass();
@@ -2965,10 +2931,10 @@ int main(int __argc, char **__argv)
                 .label = "HUD pass" });
             {
                 if (SHOW_CROSSHAIRS) {
-                    render_crosshairs(&line_attrib);
+                    render_crosshairs();
                 }
                 if (SHOW_ITEM) {
-                    render_item(&block_attrib);
+                    render_item();
                 }
                 // RENDER TEXT //
                 // if (false)
@@ -2988,14 +2954,14 @@ int main(int __argc, char **__argv)
                             chunked(s->x), chunked(s->z), s->x, s->y, s->z,
                             g->player_count, g->chunk_count,
                             face_count * 2, hour, am_pm, fps.fps);
-                        render_text(&text_attrib, ALIGN_LEFT, tx, ty, ts, text_buffer);
+                        render_text(ALIGN_LEFT, tx, ty, ts, text_buffer);
                         ty -= ts * 2;
                     }
                     if (SHOW_CHAT_TEXT) {
                         for (int i = 0; i < MAX_MESSAGES; i++) {
                             int index = (g->message_index + i) % MAX_MESSAGES;
                             if (strlen(g->messages[index])) {
-                                render_text(&text_attrib, ALIGN_LEFT, tx, ty, ts,
+                                render_text(ALIGN_LEFT, tx, ty, ts,
                                     g->messages[index]);
                                 ty -= ts * 2;
                             }
@@ -3003,17 +2969,17 @@ int main(int __argc, char **__argv)
                     }
                     if (g->typing) {
                         snprintf(text_buffer, 1024, "> %s", g->typing_buffer);
-                        render_text(&text_attrib, ALIGN_LEFT, tx, ty, ts, text_buffer);
+                        render_text(ALIGN_LEFT, tx, ty, ts, text_buffer);
                         ty -= ts * 2;
                     }
                     if (SHOW_PLAYER_NAMES) {
                         if (player != me) {
-                            render_text(&text_attrib, ALIGN_CENTER,
+                            render_text(ALIGN_CENTER,
                                 g->width / 2, ts, ts, player->name);
                         }
                         Player *other = player_crosshair(player);
                         if (other) {
-                            render_text(&text_attrib, ALIGN_CENTER,
+                            render_text(ALIGN_CENTER,
                                 g->width / 2, g->height / 2 - ts - 24, ts,
                                 other->name);
                         }
